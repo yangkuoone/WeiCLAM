@@ -9,7 +9,7 @@ import cPickle
 from Extends import draw_groups
 
 class BigClam(object):
-    def __init__(self, A=None, K=None, debug_output=False, LLH_output=True, sparsity_coef = 0, initF=None, eps=1e-4, iter_output=None, alpha=None, zero_eps=0):
+    def __init__(self, A=None, K=None, debug_output=False, LLH_output=True, sparsity_coef = 0, initF=None, eps=1e-4, iter_output=None, alpha=None):
         np.random.seed(1125582)
         self.A = A.copy()
         self.not_A = 1.0 * (self.A == 0)
@@ -35,7 +35,6 @@ class BigClam(object):
         self.iter_output = self.N if iter_output is None else iter_output
         self.LLH_output_vals = []
         self.alpha = alpha if alpha is not None else 0.3 if self.weighted else 0.1
-        self.zero_eps = zero_eps
 
     def init_sumF(self, F):
         self.sumF = np.sum(F, axis=0)
@@ -287,7 +286,7 @@ class BigClam(object):
             self.hist[2].append(F.copy())
             self.hist[3].append(grad.copy())
             self.hist[4].append(step)
-            newFu = np.minimum(np.maximum(self.zero_eps, F[u] + step * grad), 10000)
+            newFu = np.minimum(np.maximum(0, F[u] + step * grad), 10000)
             self.update_sumF(newFu, F[u])
             F[u] = newFu
             self.hist[5].append(F.copy())
@@ -298,7 +297,7 @@ class BigClam(object):
         LLH = self.loglikelihood(F, u)
         for i in xrange(MaxIter):
             D = F[u] + stepSize * deltaV
-            D[D < self.zero_eps] = self.zero_eps
+            D[D < 0] = 0
             D[D > 10000] = 10000
             newLLH = self.loglikelihood(F, u, newFu=D)
             update = alpha * stepSize * gradV.dot(deltaV)
