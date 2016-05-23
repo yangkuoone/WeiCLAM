@@ -6,6 +6,7 @@
 
 Cache/
 \[Originals\]/
+code/.ipynb_checkpoints/
 
 #python
 *.pyc
