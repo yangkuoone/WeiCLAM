@@ -7,17 +7,33 @@ import scipy as sp
 import cPickle
 from Extends import draw_groups
 
+
+def getSeedCenters(C, K=None, w=4):
+    if K is None:
+        K = C.shape[0]
+    cond = GetNeighborhoodConductance(C)
+    local_max = conductanceLocalMin(C, cond=cond)
+    res = [local_max.pop(0)]
+
+    while len(res) < K and len(local_max) > 0:
+        all_nodes = np.any(C[res] != 0, axis=0)
+        interseption = C[local_max].dot(all_nodes.T) / np.sum(C[local_max], axis=1)
+        k = np.argmin(cond[local_max] + w * interseption)
+        res.append(local_max.pop(k))
+    return res
+
 #TODO: use this functions instead internal in BigClam
-def conductanceLocalMin(A, K=None):
+def conductanceLocalMin(A, K=None, cond=None):
     if K is None:
         K = A.shape[1]
     InvalidNIDS = []
-    NIdPhiV = GetNeighborhoodConductance(A)
-    NIdPhiV = sorted(enumerate(NIdPhiV), key=lambda x: x[1])
+    if cond is None:
+        cond = GetNeighborhoodConductance(A)
+    cond = sorted(enumerate(cond), key=lambda x: x[1])
     indx = []
     CurCID = 0
-    for ui in xrange(len(NIdPhiV)):
-        UID = NIdPhiV[ui][0]
+    for ui in xrange(len(cond)):
+        UID = cond[ui][0]
         if UID in InvalidNIDS:
             continue
         indx.append(UID)
@@ -43,7 +59,7 @@ def GetNeighborhoodConductance(A, minDeg = 5):
         NIdPhiV[u] = 1 if GetDeg < minDeg else GetConductance(A, NBCmty[0], Edges2)
     return NIdPhiV
 
-#TODO: optimize
+#TODO: optimize get it from networkx lib (when all code will use it)
 def GetConductance(A, CmtyS, Edges2):
     Vol, Cut, phi = 0, 0, 0.0
     for i in xrange(len(CmtyS)):
@@ -69,7 +85,7 @@ def GetConductance(A, CmtyS, Edges2):
 
 
 class BigClam(object):
-    def __init__(self, A=None, K=None, debug_output=False, LLH_output=True, sparsity_coef = 0, initF=None, eps=1e-4, iter_output=None, alpha=None):
+    def __init__(self, A=None, K=None, debug_output=False, LLH_output=True, sparsity_coef = 0, initF='cond', eps=1e-4, iter_output=None, alpha=None):
         np.random.seed(1125582)
         self.A = A.copy()
         self.not_A = 1.0 * (self.A == 0)
@@ -228,93 +244,26 @@ class BigClam(object):
     def initRandF(self):
         F = 0.75 + 0.5*np.random.rand(self.N, self.K)
         self.init_sumF(F)
-        self.initFmode = F.copy()
         return F
 
-    def initZeros(self):
-        F = 0.01 * np.ones((self.N, self.K))
-        self.init_sumF(F)
-        self.initFmode = F.copy()
-        return F
-
-    def initNeighborComF(self, A=None):
-        InvalidNIDS = []
-        ChosenNIDV = []
-        RunTm = 0
-        NIdPhiV = self.GetNeighborhoodConductance(A)
-        NIdPhiV = sorted(enumerate(NIdPhiV), key=lambda x: x[1])
-
-        CurCID = 0
-        for ui in xrange(len(NIdPhiV)):
-            UID = NIdPhiV[ui][0]
-            if UID in InvalidNIDS:
-                continue
-            ChosenNIDV.append(UID) # for debug
-            # add the node and its neighbors to the current community
-            F[UID, CurCID] = 1.0
-            NI = A[UID] # neighbours of UID
-            NI[UID] = 1
-            NI = np.where(NI)[0]
-            for e in xrange(len(NI)):
-                F[NI[e], CurCID] = 1.0
-            InvalidNIDS.extend(NI)
-            CurCID += 1
-            if CurCID >= self.K:
-                break
-        else:
-            if self.debug_output:
-                print "{} communities needed to fill randomly\n".format(self.K - CurCID)
-        sumF = np.sum(F, axis=0)
-        ComSize = 10
-        for i in np.where(sumF == 0)[0]:
-            UID = np.random.random_integers(0, self.N-1, ComSize)
-            F[UID, i] = np.random.random(size=(ComSize,))
-        self.init_sumF(F)
-        self.initFmode = F.copy()
-        return F
-
-    def GetNeighborhoodConductance(self, A=None):
+    def initNeighborComF(self, A=None, new=False):
         if A is None:
             A = self.A
-        if self.weighted:
-            A = self.A.copy()
-            A[A < np.mean(A)] = 0
-            A[A >= np.mean(A)] = 1
-        F = np.zeros(shape=(self.N, self.K))
-        Edges2 = np.sum(A)
-        NIdPhiV = np.zeros(shape=(self.N,))
-        for u in xrange(self.N):
-            GetDeg = np.sum(A[u])
-            NBCmty = A[u]  # neighbours of u
-            NBCmty[u] = 1
-            NBCmty = np.where(NBCmty)
 
-            NIdPhiV[u] = 1 if GetDeg < 5 else self.GetConductance(A, NBCmty[0], Edges2)
-        return NIdPhiV
+        NIdPhiV = getSeedCenters(A, self.K) if new else conductanceLocalMin(A, self.K)
 
-    def GetConductance(self, A, CmtyS, Edges2):
-        Vol, Cut, phi = 0, 0, 0.0
-        for i in xrange(len(CmtyS)):
-            NI = A[i] # neighbours of u
-            NI[i] = 1
-            NI = np.where(NI)[0]
-            for e in xrange(len(NI)):
-                if NI[e] not in CmtyS:
-                    Cut += 1
-            Vol += sum(A[i])
+        F = np.zeros((self.N, self.K))
+        F[:, 0:len(NIdPhiV)] = A[NIdPhiV].T
 
-        if Vol != Edges2:
-            if 2 * Vol > Edges2:
-                phi = Cut / (Edges2 - Vol)
-            elif Vol == 0:
-                phi = 0
-            else:
-                phi = Cut / Vol
-        elif Vol == Edges2:
-            phi = 1
-
-        return phi
-
+        if len(NIdPhiV) < self.K:
+            if self.debug_output:
+                print "{} communities needed to fill randomly\n".format(self.K - len(NIdPhiV))
+            ComSize = 10
+            for i in xrange(len(NIdPhiV)+1, self.K):
+                UID = np.random.random_integers(0, self.N-1, ComSize)
+                F[UID, i] = np.random.random(size=(ComSize,))
+        self.init_sumF(F)
+        return F
 
     def stop(self, F, iter):
         newLLH = self.loglikelihood(F)
@@ -368,21 +317,31 @@ class BigClam(object):
                 break
         else:
             stepSize = 0
-            if self.debug_output:
-                print '!',
         return stepSize
 
     def initFromSpecified(self):
         self.init_sumF(self.initFmode)
-        return self.initFmode.copy()
+        return self.initFmode
 
     def initF(self):
-        F = self.initRandF() if self.initFmode == 'rand' else self.initNeighborComF() if self.initFmode is None else \
-            self.initZeros() if self.initFmode == 'zeros' else self.initFromSpecified()
+        inits = {
+            'cond': self.initNeighborComF,
+            'cond_new': lambda: self.initNeighborComF(new=True),
+            'rand': self.initRandF,
+            'def': self.initFromSpecified
+        }
+
+        try:
+            F = inits['def']() if not isinstance(self.initFmode, basestring) else inits[self.initFmode]()
+        except (KeyError):
+            print 'No such init mode: \'{}\' use from this list:{} or set F manualy'.format(self.initFmode, ', '.join(inits))
+            raise
+
         self.maxLLH = self.loglikelihood(F)
         self.LLH[0].append(0)
         self.LLH[1].append(self.maxLLH)
         self.maxF = F.copy()
+        self.initFmode = F.copy()
         return F
 
     def fit(self, A=None, K=None):
@@ -437,4 +396,33 @@ def draw_bigClam_res():
     # plt.show()
 
 if __name__ == "__main__":
-    draw_bigClam_res()
+    #draw_bigClam_res()
+    #A = np.array([[0, 1, 1, 0, 0, 0], [1, 0, 1, 0, 0, 0], [1, 1, 0, 1, 0, 0], [0, 0, 1, 0, 1, 1], [0, 0, 0, 1, 0, 1],
+                  #[0, 0, 0, 1, 1, 0]])
+    #print GetNeighborhoodConductance(A)
+
+    K = 4
+    import os
+
+    DATA_PATH = '../data/vk/'
+    ego_paths = [f for f in os.listdir(DATA_PATH) if f.endswith(".ego")]
+
+    inits = ['cond_new']
+    plt.figure(figsize=(18, 12))
+    Fss = []
+    itersLLHs = []
+    for indx, ego in enumerate(ego_paths):
+        D = cPickle.load(file('../data/vk/{}'.format(ego)))
+        G = nx.Graph(D)
+        A = np.array(nx.to_numpy_matrix(G))
+        Fs = []
+        itersLLH = []
+        if indx == 0:
+            continue
+        for init in inits:
+            bigClam = BigClam(A, K, initF=init, debug_output=False, LLH_output=False, eps=1e-2, iter_output=3, alpha=0.3)
+            res = bigClam.fit()
+            Fs.append(bigClam.initFmode)
+            itersLLH.append(bigClam.LLH_output_vals)
+            itersLLHs.append(itersLLH)
+            Fss.append(Fs)
