@@ -8,7 +8,7 @@ import cPickle
 from Extends import draw_groups
 
 
-def getSeedCenters(C, K=None, w=4):
+def getSeedCenters(C, K=None, w=1):
     if K is None:
         K = C.shape[0]
     cond = GetNeighborhoodConductance(C)
@@ -85,7 +85,7 @@ def GetConductance(A, CmtyS, Edges2):
 
 
 class BigClam(object):
-    def __init__(self, A=None, K=None, debug_output=False, LLH_output=True, sparsity_coef = 0, initF='cond', eps=1e-4, iter_output=None, alpha=None):
+    def __init__(self, A=None, K=None, debug_output=False, LLH_output=True, sparsity_coef = 0, initF='cond', eps=1e-4, iter_output=None, alpha=None, rand_init_coef=0.01):
         np.random.seed(1125582)
         self.A = A.copy()
         self.not_A = 1.0 * (self.A == 0)
@@ -111,6 +111,7 @@ class BigClam(object):
         self.iter_output = self.N if iter_output is None else iter_output
         self.LLH_output_vals = []
         self.alpha = alpha if alpha is not None else 0.3 if self.weighted else 0.1
+        self.rand_init_coef = rand_init_coef
 
     def init_sumF(self, F):
         self.sumF = np.sum(F, axis=0)
@@ -246,7 +247,7 @@ class BigClam(object):
         self.init_sumF(F)
         return F
 
-    def initNeighborComF(self, A=None, new=False):
+    def initNeighborComF(self, A=None, new=False, randz=False):
         if A is None:
             A = self.A
 
@@ -263,6 +264,10 @@ class BigClam(object):
                 UID = np.random.random_integers(0, self.N-1, ComSize)
                 F[UID, i] = np.random.random(size=(ComSize,))
         self.init_sumF(F)
+        if randz:
+            eps = 0
+            s = np.sum(F == 0)
+            F[F==0] = (self.rand_init_coef - eps) * np.random.random(size=(s,)) + eps
         return F
 
     def stop(self, F, iter):
@@ -327,6 +332,8 @@ class BigClam(object):
         inits = {
             'cond': self.initNeighborComF,
             'cond_new': lambda: self.initNeighborComF(new=True),
+            'cond_randz': lambda: self.initNeighborComF(new=False, randz=True),
+            'cond_new_randz': lambda: self.initNeighborComF(new=True, randz=True),
             'rand': self.initRandF,
             'def': self.initFromSpecified
         }
