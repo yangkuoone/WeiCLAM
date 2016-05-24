@@ -1,12 +1,72 @@
+from __future__ import division
 from sklearn.base import BaseEstimator, TransformerMixin
 import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
 import scipy as sp
-from scipy import optimize as opt
-from transliterate import translit
 import cPickle
 from Extends import draw_groups
+
+#TODO: use this functions instead internal in BigClam
+def conductanceLocalMin(A, K=None):
+    if K is None:
+        K = A.shape[1]
+    InvalidNIDS = []
+    NIdPhiV = GetNeighborhoodConductance(A)
+    NIdPhiV = sorted(enumerate(NIdPhiV), key=lambda x: x[1])
+    indx = []
+    CurCID = 0
+    for ui in xrange(len(NIdPhiV)):
+        UID = NIdPhiV[ui][0]
+        if UID in InvalidNIDS:
+            continue
+        indx.append(UID)
+        NI = A[UID]  # neighbours of UID
+        NI[UID] = 1
+        NI = np.where(NI)[0]
+        InvalidNIDS.extend(NI)
+        CurCID += 1
+        if CurCID >= K:
+            break
+    return indx
+
+def GetNeighborhoodConductance(A, minDeg = 5):
+    N, K = A.shape
+    Edges2 = np.sum(A)
+    NIdPhiV = np.zeros(shape=(N,))
+    for u in xrange(N):
+        GetDeg = np.sum(A[u])
+        NBCmty = A[u].copy() # neighbours of u
+        NBCmty[u] = 1
+        NBCmty = np.where(NBCmty)
+
+        NIdPhiV[u] = 1 if GetDeg < minDeg else GetConductance(A, NBCmty[0], Edges2)
+    return NIdPhiV
+
+#TODO: optimize
+def GetConductance(A, CmtyS, Edges2):
+    Vol, Cut, phi = 0, 0, 0.0
+    for i in xrange(len(CmtyS)):
+        NI = A[CmtyS[i]].copy()  # neighbours of u
+        NI[CmtyS[i]] = 1
+        NI = np.where(NI)[0]
+        for e in xrange(len(NI)):
+            if NI[e] not in CmtyS:
+                Cut += 1
+        Vol += sum(A[CmtyS[i]])
+
+    if Vol != Edges2:
+        if 2 * Vol > Edges2:
+            phi = Cut / (Edges2 - Vol)
+        elif Vol == 0:
+            phi = 0
+        else:
+            phi = Cut / Vol
+    elif Vol == Edges2:
+        phi = 1
+
+    return phi
+
 
 class BigClam(object):
     def __init__(self, A=None, K=None, debug_output=False, LLH_output=True, sparsity_coef = 0, initF=None, eps=1e-4, iter_output=None, alpha=None):
@@ -178,25 +238,10 @@ class BigClam(object):
         return F
 
     def initNeighborComF(self, A=None):
-        if A is None:
-            A = self.A
-        if self.weighted:
-            A = self.A.copy()
-            A[A < np.mean(A)] = 0
-            A[A >= np.mean(A)] = 1
-        F = np.zeros(shape=(self.N, self.K))
-        Edges2 = np.sum(A)
-        NIdPhiV = np.zeros(shape=(self.N,))
         InvalidNIDS = []
         ChosenNIDV = []
         RunTm = 0
-        for u in xrange(self.N):
-            GetDeg = np.sum(A[u])
-            NBCmty = A[u] # neighbours of u
-            NBCmty[u] = 1
-            NBCmty = np.where(NBCmty)
-
-            NIdPhiV[u] = 1 if GetDeg < 5 else self.GetConductance(NBCmty[0], Edges2)
+        NIdPhiV = self.GetNeighborhoodConductance(A)
         NIdPhiV = sorted(enumerate(NIdPhiV), key=lambda x: x[1])
 
         CurCID = 0
@@ -228,19 +273,35 @@ class BigClam(object):
         self.initFmode = F.copy()
         return F
 
-    def AddCom(self, UID, CurCID, param):
-        pass
+    def GetNeighborhoodConductance(self, A=None):
+        if A is None:
+            A = self.A
+        if self.weighted:
+            A = self.A.copy()
+            A[A < np.mean(A)] = 0
+            A[A >= np.mean(A)] = 1
+        F = np.zeros(shape=(self.N, self.K))
+        Edges2 = np.sum(A)
+        NIdPhiV = np.zeros(shape=(self.N,))
+        for u in xrange(self.N):
+            GetDeg = np.sum(A[u])
+            NBCmty = A[u]  # neighbours of u
+            NBCmty[u] = 1
+            NBCmty = np.where(NBCmty)
 
-    def GetConductance(self, CmtyS, Edges2):
+            NIdPhiV[u] = 1 if GetDeg < 5 else self.GetConductance(A, NBCmty[0], Edges2)
+        return NIdPhiV
+
+    def GetConductance(self, A, CmtyS, Edges2):
         Vol, Cut, phi = 0, 0, 0.0
         for i in xrange(len(CmtyS)):
-            NI = self.A[i] # neighbours of u
+            NI = A[i] # neighbours of u
             NI[i] = 1
             NI = np.where(NI)[0]
             for e in xrange(len(NI)):
                 if NI[e] not in CmtyS:
                     Cut += 1
-            Vol += sum(self.A[i])
+            Vol += sum(A[i])
 
         if Vol != Edges2:
             if 2 * Vol > Edges2:
