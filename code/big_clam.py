@@ -22,7 +22,6 @@ def getSeedCenters(C, K=None, w=1):
         res.append(local_max.pop(k))
     return res
 
-#TODO: use this functions instead internal in BigClam
 def conductanceLocalMin(A, K=None, cond=None):
     if K is None:
         K = A.shape[1]
@@ -85,7 +84,7 @@ def GetConductance(A, CmtyS, Edges2):
 
 
 class BigClam(object):
-    def __init__(self, A=None, K=None, debug_output=False, LLH_output=True, sparsity_coef = 0, initF='cond', eps=1e-4, iter_output=None, alpha=None, rand_init_coef=0.01):
+    def __init__(self, A=None, K=None, debug_output=False, LLH_output=True, sparsity_coef = 0, initF='cond', eps=1e-4, iter_output=None, alpha=None, rand_init_coef=0.1):
         np.random.seed(1125582)
         self.A = A.copy()
         self.not_A = 1.0 * (self.A == 0)
@@ -244,7 +243,6 @@ class BigClam(object):
 
     def initRandF(self):
         F = 0.75 + 0.5*np.random.rand(self.N, self.K)
-        self.init_sumF(F)
         return F
 
     def initNeighborComF(self, A=None, new=False, randz=False):
@@ -263,11 +261,10 @@ class BigClam(object):
             for i in xrange(len(NIdPhiV)+1, self.K):
                 UID = np.random.random_integers(0, self.N-1, ComSize)
                 F[UID, i] = np.random.random(size=(ComSize,))
-        self.init_sumF(F)
         if randz:
             eps = 0
             s = np.sum(F == 0)
-            F[F==0] = (self.rand_init_coef - eps) * np.random.random(size=(s,)) + eps
+            F[F==0] = self.rand_init_coef * np.random.random(size=(s,)) + eps
         return F
 
     def stop(self, F, iter):
@@ -325,7 +322,6 @@ class BigClam(object):
         return stepSize
 
     def initFromSpecified(self):
-        self.init_sumF(self.initFmode)
         return self.initFmode
 
     def initF(self):
@@ -349,6 +345,7 @@ class BigClam(object):
         self.LLH[1].append(self.maxLLH)
         self.maxF = F.copy()
         self.initFmode = F.copy()
+        self.init_sumF(F)
         return F
 
     def fit(self, A=None, K=None):
@@ -414,7 +411,7 @@ if __name__ == "__main__":
     DATA_PATH = '../data/vk/'
     ego_paths = [f for f in os.listdir(DATA_PATH) if f.endswith(".ego")]
 
-    inits = ['cond_new']
+    inits = ['cond_randz']
     plt.figure(figsize=(18, 12))
     Fss = []
     itersLLHs = []
