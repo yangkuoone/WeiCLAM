@@ -45,7 +45,7 @@ def conductanceLocalMin(A, K=None, cond=None):
             break
     return indx
 
-def GetNeighborhoodConductance(A, minDeg = 5):
+def GetNeighborhoodConductance(A, minDeg = 10):
     N, K = A.shape
     Edges2 = np.sum(A)
     NIdPhiV = np.zeros(shape=(N,))
@@ -245,7 +245,7 @@ class BigClam(object):
         F = 0.75 + 0.5*np.random.rand(self.N, self.K)
         return F
 
-    def initNeighborComF(self, A=None, new=False, randz=False):
+    def initNeighborComF(self, A=None, new=False, randz=False, spreading=False):
         if A is None:
             A = self.A
 
@@ -261,10 +261,16 @@ class BigClam(object):
             for i in xrange(len(NIdPhiV)+1, self.K):
                 UID = np.random.random_integers(0, self.N-1, ComSize)
                 F[UID, i] = np.random.random(size=(ComSize,))
+        if spreading:
+            for i in xrange(F.shape[1]):
+                indx = np.any(A[F[:, i] != 0], axis=0)
+                F[(indx & (F[:, i] == 0)), i] = 0.5
         if randz:
             eps = 0
             s = np.sum(F == 0)
             F[F==0] = self.rand_init_coef * np.random.random(size=(s,)) + eps
+
+
         return F
 
     def stop(self, F, iter):
@@ -330,6 +336,8 @@ class BigClam(object):
             'cond_new': lambda: self.initNeighborComF(new=True),
             'cond_randz': lambda: self.initNeighborComF(new=False, randz=True),
             'cond_new_randz': lambda: self.initNeighborComF(new=True, randz=True),
+            'cond_randz_spr': lambda: self.initNeighborComF(new=False, randz=True, spreading=True),
+            'cond_new_randz_spr': lambda: self.initNeighborComF(new=True, randz=True, spreading=True),
             'rand': self.initRandF,
             'def': self.initFromSpecified
         }
