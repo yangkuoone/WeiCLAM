@@ -11,7 +11,7 @@ from multiprocessing import Pool, Process
 
 class BigClam(object):
     def __init__(self, A=None, K=None, debug_output=False, LLH_output=True, sparsity_coef = 0, initF='cond', eps=1e-4,
-                 iter_output=None, alpha=None, rand_init_coef=0.1, processesNo=None, save_hist=False):
+                 iter_output=None, alpha=None, rand_init_coef=0.1, stepSizeMod="backtracking", processesNo=None, save_hist=False):
         np.random.seed(1125582)
         self.A = A.copy()
         self.K = K
@@ -34,15 +34,13 @@ class BigClam(object):
         else:
             self.pool = None
         self.save_hist = save_hist
+        self.stepSizeMod = stepSizeMod
 
 
     def init(self):
         if self.save_hist:
             self.hist = [[], [], [], [], []]
         self.LLH = [[], []]
-        self.sumF = 0
-        self.maxLLH = -np.infty
-        self.maxF = None
         self.noImprCount = 0
         self.LLH_output_vals = []
         self.NIdPhiV = None
@@ -134,12 +132,6 @@ class BigClam(object):
 
             grad = np.sum(neigF * PP[:, None], axis=0) - (self.sumF - F[u] - np.sum(neigF, axis=0)) - 2 * self.sparsity_coef * pen_grad
 
-            m = max(np.abs(grad))
-            if m > 100:
-                grad = grad * 100.0 / m
-        # is C++ code grad[grad > 10] = 10
-        # is C++ code grad[grad < -10] = -10
-
         return grad
 
     def initRandF(self):
@@ -203,7 +195,12 @@ class BigClam(object):
 
     def optimize(self, F, u, iter=1, step=None):
         grad = self.gradient(F, u)
-        step = self.backtrakingLineSearch(u, F, grad, grad, alpha=self.alpha)
+        m = max(np.abs(grad))
+        if m > 100:
+           grad = grad * 100.0 / m
+        # is C++ code grad[grad > 10] = 10
+        # is C++ code grad[grad < -10] = -10
+        step = self.stepSize(u, F, grad, grad, iter, alpha=self.alpha)
         if step != 0.0:
             if self.save_hist:
                 self.hist[0].append(iter)
@@ -219,7 +216,10 @@ class BigClam(object):
     def step(self, Fu, stepSize, direction):
         return np.minimum(np.maximum(0, Fu + stepSize * direction), 10000)
 
-    def backtrakingLineSearch(self, u, F, deltaV, gradV, alpha=0.1, beta=0.3, MaxIter=15):
+    def stepSize(self, u, F, deltaV, gradV, iter, alpha=0.1, beta=0.3, MaxIter=15):
+        return self.backtrackingLineSearch(u, F, deltaV, gradV, alpha, beta, MaxIter) if self.stepSizeMod == 'backtracking' else 0.01 / iter ** 0.25
+
+    def backtrackingLineSearch(self, u, F, deltaV, gradV, alpha=0.1, beta=0.3, MaxIter=15):
         stepSize = 0.1 if not self.weighted else 0.1
         LLH = self.loglikelihood_u(F, u)
         for i in xrange(MaxIter):
