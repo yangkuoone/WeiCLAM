@@ -57,7 +57,6 @@ sample_*.dot
 *.graph
 *.log
 *.m
-*.net
 *.out
 *.paj
 *.tab
@@ -87,3 +86,5 @@ external/snap-master/tutorials/.DS_Store
 external/snap-master/tutorials/*.dSYM
 external/snap-master/benchmarking/*.dat
 
+#data
+*.tgz
