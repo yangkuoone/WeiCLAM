@@ -5,112 +5,49 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import scipy as sp
 import cPickle
-from Extends import draw_groups
-
-
-def getSeedCenters(C, K=None, w=1):
-    if K is None:
-        K = C.shape[0]
-    cond = GetNeighborhoodConductance(C)
-    local_max = conductanceLocalMin(C, cond=cond)
-    res = [local_max.pop(0)]
-
-    while len(res) < K and len(local_max) > 0:
-        all_nodes = np.any(C[res] != 0, axis=0)
-        interseption = C[local_max].dot(all_nodes.T) / np.sum(C[local_max], axis=1)
-        k = np.argmin(cond[local_max] + w * interseption)
-        res.append(local_max.pop(k))
-    return res
-
-def conductanceLocalMin(A, K=None, cond=None):
-    if K is None:
-        K = A.shape[1]
-    InvalidNIDS = []
-    if cond is None:
-        cond = GetNeighborhoodConductance(A)
-    cond = sorted(enumerate(cond), key=lambda x: x[1])
-    indx = []
-    CurCID = 0
-    for ui in xrange(len(cond)):
-        UID = cond[ui][0]
-        if UID in InvalidNIDS:
-            continue
-        indx.append(UID)
-        NI = A[UID]  # neighbours of UID
-        NI[UID] = 1
-        NI = np.where(NI)[0]
-        InvalidNIDS.extend(NI)
-        CurCID += 1
-        if CurCID >= K:
-            break
-    return indx
-
-def GetNeighborhoodConductance(A, minDeg = 10):
-    N, K = A.shape
-    Edges2 = np.sum(A)
-    NIdPhiV = np.zeros(shape=(N,))
-    for u in xrange(N):
-        GetDeg = np.sum(A[u])
-        NBCmty = A[u].copy() # neighbours of u
-        NBCmty[u] = 1
-        NBCmty = np.where(NBCmty)
-
-        NIdPhiV[u] = 1 if GetDeg < minDeg else GetConductance(A, NBCmty[0], Edges2)
-    return NIdPhiV
-
-#TODO: optimize get it from networkx lib (when all code will use it)
-def GetConductance(A, CmtyS, Edges2):
-    Vol, Cut, phi = 0, 0, 0.0
-    for i in xrange(len(CmtyS)):
-        NI = A[CmtyS[i]].copy()  # neighbours of u
-        NI[CmtyS[i]] = 1
-        NI = np.where(NI)[0]
-        for e in xrange(len(NI)):
-            if NI[e] not in CmtyS:
-                Cut += 1
-        Vol += sum(A[CmtyS[i]])
-
-    if Vol != Edges2:
-        if 2 * Vol > Edges2:
-            phi = Cut / (Edges2 - Vol)
-        elif Vol == 0:
-            phi = 0
-        else:
-            phi = Cut / Vol
-    elif Vol == Edges2:
-        phi = 1
-
-    return phi
+from Extends import draw_groups, getSeedCenters, conductanceLocalMin, progress
+from multiprocessing import Pool, Process
 
 
 class BigClam(object):
-    def __init__(self, A=None, K=None, debug_output=False, LLH_output=True, sparsity_coef = 0, initF='cond', eps=1e-4, iter_output=None, alpha=None, rand_init_coef=0.1):
+    def __init__(self, A=None, K=None, debug_output=False, LLH_output=True, sparsity_coef = 0, initF='cond', eps=1e-4,
+                 iter_output=None, alpha=None, rand_init_coef=0.1, processesNo=None, save_hist=False):
         np.random.seed(1125582)
         self.A = A.copy()
+        self.K = K
+        self.N = self.A.shape[0]
         self.not_A = 1.0 * (self.A == 0)
-        #if not selfneib:
         np.fill_diagonal(self.not_A, 0)
         self.weighted = set(np.unique(A)) != {0.0, 1.0}
         self.sparsity_coef = sparsity_coef
         self.debug_output = debug_output
         self.LLH_output = LLH_output
-        self.LLH = [[], []]
         self.initFmode = initF
         self.eps = eps
-        #self.epsCommProb = 1e-6
         self.epsCommForce = 1e-6
-        # log (1.0 / (1.0 - PNoCom))
+
+        self.iter_output = self.N if iter_output is None else iter_output
+        self.alpha = alpha if alpha is not None else 0.3 if self.weighted else 0.1
+        self.rand_init_coef = rand_init_coef
+        if processesNo != 1:
+            self.pool = Pool(processesNo)
+        else:
+            self.pool = None
+        self.save_hist = save_hist
+
+
+    def init(self):
+        if self.save_hist:
+            self.hist = [[], [], [], [], []]
+        self.LLH = [[], []]
         self.sumF = 0
         self.maxLLH = -np.infty
         self.maxF = None
-        self.hist = [[], [], [], [], [], []]
         self.noImprCount = 0
-        self.K = K if K is not None else 2
-        self.N = self.A.shape[0]
-        self.iter_output = self.N if iter_output is None else iter_output
         self.LLH_output_vals = []
-        self.alpha = alpha if alpha is not None else 0.3 if self.weighted else 0.1
-        self.rand_init_coef = rand_init_coef
+        self.NIdPhiV = None
+
+        return self.initF()
 
     def init_sumF(self, F):
         self.sumF = np.sum(F, axis=0)
@@ -128,43 +65,6 @@ class BigClam(object):
         self.sumF = t
         return ans
 
-    def gradient_check(self, F, Fu, u = None):
-        D = F.copy()
-        D[u] = Fu
-        t = self.sumF.copy()
-        self.update_sumF(D[u], F[u])
-        ans = self.gradient(D, u)
-        self.sumF = t
-        return ans
-
-    def draw_loglikelihood_slice(self, F, u, direction, step):
-        res = []
-        Fres = []
-        du = F[u].copy()
-        points = np.linspace(-0.5*step, 1.5*step, 1501)
-        zero_indx = np.where(abs(points) < step*1e-4)[0][0]
-        step_indx = np.where(abs(points-step) < step*1e-4)[0][0]
-        for t in points:
-            F[u] = du + t * direction
-            F[u][F[u] < 0] = 0
-            F[u][F[u] > 1000] = 1000
-            res.append(self.loglikelihood(F))
-            Fres.append(F.copy())
-        ax1 = plt.subplot(311)
-        plt.plot(points, res)
-        plt.scatter([0.0, step], [res[zero_indx], res[step_indx]], c='r')
-        plt.setp(ax1.get_xticklabels(), fontsize=6)
-        ax2 = plt.subplot(312, sharex=ax1)
-        Fmax = [np.max(f) for f in Fres]
-        plt.plot(points, Fmax)
-        plt.scatter([0.0, step], [Fmax[zero_indx], Fmax[step_indx]], c='r')
-        plt.setp(ax2.get_xticklabels(), visible=False)
-        ax3 = plt.subplot(313, sharex=ax1)
-        Fzeros = [np.sum(f == 0) for f in Fres]
-        plt.plot(points, Fzeros)
-        plt.scatter([0.0, step], [Fzeros[zero_indx], Fzeros[step_indx]], c='r')
-        plt.show()
-        return res
 
     def calc_penalty(self, F, u=None, newFu=None, real=False):
         if newFu is not None:
@@ -192,7 +92,7 @@ class BigClam(object):
             pen_grad = np.sum(F[u]) - F[u]
         return pen_grad
 
-    def loglikelihood(self, F, u=None, newFu=None):
+    def loglikelihood_u(self, F, u=None, newFu=None):
         if newFu is not None:
             Fu = newFu
             sumF = self.sumF - F[u] + newFu
@@ -200,27 +100,28 @@ class BigClam(object):
             Fu = F[u]
             sumF = self.sumF
 
-        if u is None:
-            FF = F.dot(F.T)
-            if not self.weighted:
-                P = np.log(1 - np.exp(-FF - self.epsCommForce))
-                pen = self.calc_penalty(F)
-                llh = np.sum(P * self.A) - np.sum(self.not_A * FF)
-                return llh - self.sparsity_coef * pen
-            else:
-                indx = np.where(self.A != 0)
-                P = np.log(1 - np.exp(-FF[indx] / self.A[indx] - self.epsCommForce))
-                llh = np.sum(P) - np.sum(FF[self.not_A == 1])
-                pen = self.calc_penalty(F)
-                return llh - self.sparsity_coef * pen
+        indx = self.A[u, :] != 0
+        neigF = F[indx, :] / self.A[u, indx].T[:, None] if self.weighted else F[indx]
+        pen = self.calc_penalty(F, u, newFu)
+        S1 = np.sum(np.log(1 - np.exp(-Fu.dot(neigF.T) - self.epsCommForce)))
+        S2 = - Fu.dot((sumF - Fu - np.sum(neigF, axis=0).T))
+
+        return S1 + S2 - self.sparsity_coef * pen
+
+    def loglikelihood(self, F):
+        FF = F.dot(F.T)
+        if not self.weighted:
+            P = np.log(1 - np.exp(-FF - self.epsCommForce))
+            pen = self.calc_penalty(F)
+            llh = np.sum(P * self.A) - np.sum(self.not_A * FF)
+            return llh - self.sparsity_coef * pen
         else:
-            indx = np.where(self.A[u, :] != 0)
-            neigF = F[indx] / self.A[u, indx].T
-            pen = self.calc_penalty(F, u, newFu)
-            #if np.sum(np.abs(self.sumF-np.sum(F, axis=0))) > 1e-3:
-            #    print 'sumF wrong!! sumF:{}, True:{}'.format(self.sumF, np.sum(F, axis=0))
-                #self.sumF = np.sum(F, axis=0)
-            return np.sum(np.log(1 - np.exp(-Fu.dot(neigF.T) - self.epsCommForce))) - Fu.dot((sumF - Fu - np.sum(neigF, axis=0).T)) - self.sparsity_coef * pen
+            indx = np.where(self.A != 0)
+            P = np.log(1 - np.exp(-FF[indx] / self.A[indx] - self.epsCommForce))
+            llh = np.sum(P) - np.sum(FF[self.not_A == 1])
+            pen = self.calc_penalty(F)
+            return llh - self.sparsity_coef * pen
+
 
     def gradient(self, F, u=None):
         if u is None:
@@ -249,7 +150,12 @@ class BigClam(object):
         if A is None:
             A = self.A
 
-        NIdPhiV = getSeedCenters(A, self.K) if new else conductanceLocalMin(A, self.K)
+        if self.NIdPhiV is None:
+            NIdPhiV = getSeedCenters(A, self.K, pool=self.pool) if new else conductanceLocalMin(A, self.K, pool=self.pool)
+            self.NIdPhiV = NIdPhiV
+        else:
+            NIdPhiV = self.NIdPhiV
+
 
         F = np.zeros((self.N, self.K))
         F[:, 0:len(NIdPhiV)] = A[NIdPhiV].T
@@ -299,25 +205,26 @@ class BigClam(object):
         grad = self.gradient(F, u)
         step = self.backtrakingLineSearch(u, F, grad, grad, alpha=self.alpha)
         if step != 0.0:
-            self.hist[0].append(iter)
-            self.hist[1].append(u)
-            self.hist[2].append(F.copy())
-            self.hist[3].append(grad.copy())
-            self.hist[4].append(step)
-            newFu = np.minimum(np.maximum(0, F[u] + step * grad), 10000)
+            if self.save_hist:
+                self.hist[0].append(iter)
+                self.hist[1].append(u)
+                self.hist[2].append(F.copy())
+                self.hist[3].append(grad.copy())
+                self.hist[4].append(step)
+            newFu = self.step(F[u], step, grad)
             self.update_sumF(newFu, F[u])
             F[u] = newFu
-            self.hist[5].append(F.copy())
         return F
 
-    def backtrakingLineSearch(self, u, F, deltaV, gradV, alpha=0.1, beta=0.5, MaxIter=20):
-        stepSize = 1 if not self.weighted else 0.1
-        LLH = self.loglikelihood(F, u)
+    def step(self, Fu, stepSize, direction):
+        return np.minimum(np.maximum(0, Fu + stepSize * direction), 10000)
+
+    def backtrakingLineSearch(self, u, F, deltaV, gradV, alpha=0.1, beta=0.3, MaxIter=15):
+        stepSize = 0.1 if not self.weighted else 0.1
+        LLH = self.loglikelihood_u(F, u)
         for i in xrange(MaxIter):
-            D = F[u] + stepSize * deltaV
-            D[D < 0] = 0
-            D[D > 10000] = 10000
-            newLLH = self.loglikelihood(F, u, newFu=D)
+            D = self.step(F[u], stepSize, deltaV)
+            newLLH = self.loglikelihood_u(F, u, newFu=D)
             update = alpha * stepSize * gradV.dot(deltaV)
             if newLLH < LLH + update or np.isnan(newLLH):
                 stepSize *= beta
@@ -328,7 +235,7 @@ class BigClam(object):
         return stepSize
 
     def initFromSpecified(self):
-        return self.initFmode
+        return self.initFmode.copy()
 
     def initF(self):
         inits = {
@@ -356,13 +263,10 @@ class BigClam(object):
         self.init_sumF(F)
         return F
 
-    def fit(self, A=None, K=None):
-        if A is not None:
-            self.A = A
-        if K is not None:
-            self.K = K
+    def fit_known_k(self, K):
+        self.K = K
+        F = self.init()
 
-        F = self.initF()
 
         for iter, u in self.nextNodeToOptimize(F):
             F = self.optimize(F, u, iter)
@@ -370,18 +274,38 @@ class BigClam(object):
                 if (len(self.LLH[1]) >= 2 and self.LLH[1][-1] - self.LLH[1][-2] < -1):
                     if self.debug_output:
                         print 'Warning! Big LLH decrease!'
-                    # self.loglikelihood_slice(self.hist[2][-1], self.hist[1][-1], self.hist[3][-1], self.hist[4][-1])
                 break
             if iter % self.iter_output == 0:
                 curLLH = self.loglikelihood(F)
                 self.LLH_output_vals.append(curLLH)
                 if self.LLH_output:
                     print 'iter: {}, LLH:{}'.format(iter, curLLH)
-                #print '    grad check: {}'.format(sum(abs(opt.check_grad(lambda x: bigClam.loglikelihood_check(F, x, w),
-                #                                                         lambda x: bigClam.gradient_check(F, x, w), Q))
-                #                                      for Q, w in zip([F1[q] for q in xrange(13)], range(13))))
-                #print 'sumF: {1}, {0}'.format(np.sum(F), np.sum(np.abs(self.sumF - np.sum(F, axis=0))))
         return self.maxF, self.maxLLH
+
+    def fit_unknown_k(self):
+        bord = 0.005
+        K = 2
+        res = []
+        while K < 10000:
+            if self.debug_output:
+                print '{} communities...'.format(K)
+            res.append(self.fit_known_k(K))
+            if len(res) > 1:
+                if (res[-1][1] - res[-2][1]) / res[0][1] < - bord:
+                    break
+            K += 1
+
+        return res[-1]
+
+    def fit(self, K=None):
+        if K is not None:
+            self.K = K
+        if self.K is not None:
+           return self.fit_known_k(self.K)
+        else:
+            return self.fit_unknown_k()
+
+
 
 def draw_bigClam_res():
     K = 9
@@ -413,28 +337,34 @@ if __name__ == "__main__":
                   #[0, 0, 0, 1, 1, 0]])
     #print GetNeighborhoodConductance(A)
 
-    K = 4
-    import os
 
-    DATA_PATH = '../data/vk/'
-    ego_paths = [f for f in os.listdir(DATA_PATH) if f.endswith(".ego")]
+    from Experiments import *
+    F_true = Fs3[0]
+    A = gamma_model_test_data(F_true)
+    power = 0.2
+    P = 1 - np.exp(- power * A)
+    mask = P <= np.random.rand(*A.shape)
 
-    inits = ['cond_randz']
-    plt.figure(figsize=(18, 12))
-    Fss = []
-    itersLLHs = []
-    for indx, ego in enumerate(ego_paths):
-        D = cPickle.load(file('../data/vk/{}'.format(ego)))
-        G = nx.Graph(D)
-        A = np.array(nx.to_numpy_matrix(G))
-        Fs = []
-        itersLLH = []
-        if indx == 0:
-            continue
-        for init in inits:
-            bigClam = BigClam(A, K, initF=init, debug_output=False, LLH_output=False, eps=1e-2, iter_output=3, alpha=0.3)
-            res = bigClam.fit()
-            Fs.append(bigClam.initFmode)
-            itersLLH.append(bigClam.LLH_output_vals)
-            itersLLHs.append(itersLLH)
-            Fss.append(Fs)
+    B = A.copy()
+    B[mask] = 0
+    C = B.copy()
+    C[B != 0] = 1
+
+    # eps = 1e-6
+    # comm_count = range(3, 10)
+    # init = None
+    # Fs = []
+    # LLHs = []
+    # for i in progress(comm_count):
+    #     bc = BigClam(C, i, initF='rand', debug_output=False, LLH_output=True, eps=eps, processesNo=4)
+    #     res = bc.fit()
+    #     Fs.append(res[0])
+    #     LLHs.append(res[1])
+
+    # import networkx as nx
+    #
+    # DATA_PATH = r'../data/SNAP/facebook_combined.txt'
+    # G = nx.read_edgelist(DATA_PATH)
+    # A = nx.adjacency_matrix(G).toarray()
+    # bc = BigClam(A, initF='cond_new_randz')
+    # F = bc.fit()
