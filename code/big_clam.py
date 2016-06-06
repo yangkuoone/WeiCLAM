@@ -7,11 +7,13 @@ import scipy as sp
 import cPickle
 from Extends import draw_groups, getSeedCenters, conductanceLocalMin, progress
 from multiprocessing import Pool, Process
-
+import cPickle
 
 class BigClam(object):
+    POOL = None
+
     def __init__(self, A=None, K=None, debug_output=False, LLH_output=True, sparsity_coef = 0, initF='cond', eps=1e-4,
-                 iter_output=None, alpha=None, rand_init_coef=0.1, stepSizeMod="backtracking", processesNo=None, save_hist=False):
+                 iter_output=None, alpha=None, rand_init_coef=0.1, stepSizeMod="backtracking", processesNo=None, save_hist=False, max_iter=1000000, dump=False, dump_name = None):
         np.random.seed(1125582)
         self.A = A.copy()
         self.K = K
@@ -30,11 +32,19 @@ class BigClam(object):
         self.alpha = alpha if alpha is not None else 0.3 if self.weighted else 0.1
         self.rand_init_coef = rand_init_coef
         if processesNo != 1:
-            self.pool = Pool(processesNo)
+            if BigClam.POOL is None:
+                self.pool = Pool(processesNo)
+                BigClam.POOL = self.pool
+            else:
+                self.pool = BigClam.POOL
         else:
             self.pool = None
         self.save_hist = save_hist
         self.stepSizeMod = stepSizeMod
+        self.dump = dump
+        self.dump_name = dump_name
+        self.max_iter = max_iter
+        self.last_step = None
 
 
     def init(self):
@@ -181,7 +191,7 @@ class BigClam(object):
             self.noImprCount += 1
         self.LLH[0].append(iter)
         self.LLH[1].append(newLLH)
-        return False if len(self.LLH[0]) <= 1 else abs(self.LLH[1][-1] / self.LLH[1][-2] - 1) < self.eps or self.noImprCount > 3
+        return False if len(self.LLH[0]) <= 1 else abs(self.LLH[1][-1] / self.LLH[1][-2] - 1) < self.eps or self.noImprCount > 3 or iter > self.max_iter
         #return False if len(self.LLH[0]) <= 1 else self.LLH[1][-1] - self.LLH[1][-2] <= 1e-6 * abs(self.LLH[1][-2]) and self.LLH[1][-1] != self.LLH[1][-2] and len(self.LLH[1]) > 5000
 
     def nextNodeToOptimize(self, F):
@@ -217,10 +227,17 @@ class BigClam(object):
         return np.minimum(np.maximum(0, Fu + stepSize * direction), 10000)
 
     def stepSize(self, u, F, deltaV, gradV, iter, alpha=0.1, beta=0.3, MaxIter=15):
+        #backtracking_only = False if len(self.LLH[0]) <= 1 else abs(self.LLH[1][-1] / self.LLH[1][-2] - 1) < self.eps * 500 or self.iter_output > 100000
+        #if backtracking_only:
+        #    if self.stepSizeMod != 'backtracking':
+        #        print 'now backtracking_only'
+        #   self.stepSizeMod = 'backtracking'
+
         return self.backtrackingLineSearch(u, F, deltaV, gradV, alpha, beta, MaxIter) if self.stepSizeMod == 'backtracking' else 0.01 / iter ** 0.25
 
     def backtrackingLineSearch(self, u, F, deltaV, gradV, alpha=0.1, beta=0.3, MaxIter=15):
         stepSize = 0.1 if not self.weighted else 0.1
+        stepSize = stepSize if self.last_step == None else min(self.last_step / beta, stepSize)
         LLH = self.loglikelihood_u(F, u)
         for i in xrange(MaxIter):
             D = self.step(F[u], stepSize, deltaV)
@@ -229,6 +246,7 @@ class BigClam(object):
             if newLLH < LLH + update or np.isnan(newLLH):
                 stepSize *= beta
             else:
+                self.last_step = stepSize
                 break
         else:
             stepSize = 0
@@ -263,6 +281,13 @@ class BigClam(object):
         self.init_sumF(F)
         return F
 
+    def dump_self(self, F, name=None):
+        DUMP_PATH = '../data/dumps/{}'
+        if name is None:
+            name = self.dump_name
+        to_dump = (self.dump_name, self.LLH, F)
+        cPickle.dump(to_dump, file(DUMP_PATH.format(name), 'w'))
+
     def fit_known_k(self, K):
         self.K = K
         F = self.init()
@@ -271,15 +296,21 @@ class BigClam(object):
         for iter, u in self.nextNodeToOptimize(F):
             F = self.optimize(F, u, iter)
             if iter % self.N == 0 and self.stop(F, iter):
+                if self.dump:
+                    self.dump_self(F)
                 if (len(self.LLH[1]) >= 2 and self.LLH[1][-1] - self.LLH[1][-2] < -1):
                     if self.debug_output:
                         print 'Warning! Big LLH decrease!'
                 break
             if iter % self.iter_output == 0:
+                if self.dump:
+                    if not isinstance(self.dump, int) or (isinstance(self.dump, int) and int(iter/self.iter_output) % self.dump == 0):
+                        self.dump_self(F)
                 curLLH = self.loglikelihood(F)
                 self.LLH_output_vals.append(curLLH)
                 if self.LLH_output:
                     print 'iter: {}, LLH:{}'.format(iter, curLLH)
+
         return self.maxF, self.maxLLH
 
     def fit_unknown_k(self):
@@ -291,7 +322,7 @@ class BigClam(object):
                 print '{} communities...'.format(K)
             res.append(self.fit_known_k(K))
             if len(res) > 1:
-                if (res[-1][1] - res[-2][1]) / res[0][1] < - bord:
+                if (res[-1][1] - res[-2][1]) / res[0][1] < bord:
                     break
             K += 1
 
@@ -341,7 +372,7 @@ if __name__ == "__main__":
     from Experiments import *
     F_true = Fs3[0]
     A = gamma_model_test_data(F_true)
-    power = 0.2
+    power = 0.05
     P = 1 - np.exp(- power * A)
     mask = P <= np.random.rand(*A.shape)
 
@@ -366,5 +397,5 @@ if __name__ == "__main__":
     # DATA_PATH = r'../data/SNAP/facebook_combined.txt'
     # G = nx.read_edgelist(DATA_PATH)
     # A = nx.adjacency_matrix(G).toarray()
-    # bc = BigClam(A, initF='cond_new_randz')
-    # F = bc.fit()
+    bc = BigClam(A, 3, initF='rand', processesNo=1)
+    F = bc.fit()

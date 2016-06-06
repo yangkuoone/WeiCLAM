@@ -10,12 +10,12 @@ from Experiments import draw_matrix
 
 class BigClamGamma(BigClam):
     def __init__(self, A=None, K=None, theta=1, debug_output=False, LLH_output=True, sparsity_coef = 0, initF='cond', eps=1e-4,
-                 iter_output=None, alpha=None, rand_init_coef=0.1, stepSizeMod="simple", processesNo=None, save_hist=False, pow=0.2):
+                 iter_output=None, alpha=None, rand_init_coef=0.1, stepSizeMod="simple", processesNo=None, save_hist=False, pow=0.2, max_iter=1000000, dump=False, dump_name = None):
         self.weights = A.copy()
         A = 1.0 * (self.weights != 0)
 
         super(BigClamGamma, self).__init__(A, K, debug_output, LLH_output, sparsity_coef, initF, eps,
-                 iter_output, alpha, rand_init_coef, stepSizeMod, processesNo, save_hist)
+                 iter_output, alpha, rand_init_coef, stepSizeMod, processesNo, save_hist, max_iter, dump, dump_name)
         self.theta = theta
         self.Fbord = 1
         self.logA = np.log(self.weights + self.epsCommForce)
@@ -26,19 +26,20 @@ class BigClamGamma(BigClam):
         return F
 
     def loglikelihood_u(self, F, u=None, newFu=None):
-        raise NotImplemented()
-        # A = self.A
-        # if newFu is None:
-        #     FF = F.dot(F.T) + self.Fbord
-        # else:
-        #     Fu_old = F[u].copy()
-        #     F[u] = newFu
-        #     FF = F.dot(F.T) + self.Fbord
-        #     F[u] = Fu_old
-        #
-        # S1 = np.sum(-gammaln(FF) - FF * np.log(self.theta))
-        # S2 = np.sum((FF - 1) * self.logA - A / self.theta)
-        # return S1 + S2
+        llh_u = super(BigClamGamma, self).loglikelihood_u(self.sqrt_pow * F, u, newFu)
+
+        if newFu is not None:
+            Fu = newFu
+        else:
+            Fu = F[u]
+
+        indx = self.A[u, :] != 0
+        neigF = F[indx, :]
+        FF = Fu.dot(neigF.T)
+        S1 = np.sum(-gammaln(FF + self.Fbord) - (FF + self.Fbord) * np.log(self.theta))
+        S2 = np.sum(FF * self.logA[indx, u] - self.weights[indx, u] / self.theta)
+
+        return llh_u + S1 + S2
 
     def loglikelihood_w(self, F):
         FF = F.dot(F.T)
@@ -105,9 +106,10 @@ if __name__ == "__main__":
 
     F_true = Fs3[0]
     A = gamma_model_test_data(F_true)
-    power = 0.2
+    power = 0.05
     P = 1 - np.exp(- power * A)
-    mask = P <= np.random.rand(*A.shape)
+    rand = np.random.rand(*A.shape)
+    mask = P <= (rand + rand.T) / 2
 
     B = A.copy()
     B[mask] = 0
@@ -115,7 +117,7 @@ if __name__ == "__main__":
     C[B != 0] = 1
 
     w_model3r = BigClamGamma(B, 3, debug_output=False, LLH_output=True, initF='cond_new_randz_spr', iter_output=1, processesNo=1,
-                             rand_init_coef=0.5)
+                             rand_init_coef=0.5, stepSizeMod="backtracking0")
     F_model3r, LLH3r = w_model3r.fit()
 
     draw_res(B, F_true, F_model3r)
