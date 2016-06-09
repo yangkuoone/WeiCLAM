@@ -54,7 +54,7 @@ def test_example():
                      [0, 0, 0, 1, 1, 1, 0]])
 
 
-def draw_groups(A, F, ids, names, figname = 'NoName', png=True, pdf=False, display=False, svg=False, dpi=2300):
+def draw_groups(A, F, ids=None, names=None, figname = 'NoName', png=True, pdf=False, display=False, svg=False, dpi=2300):
     N, K = F.shape
 
     C = F > np.sum(A) / (A.shape[0] * (A.shape[0] - 1))
@@ -113,8 +113,9 @@ def draw_groups(A, F, ids, names, figname = 'NoName', png=True, pdf=False, displ
                 nx.draw_networkx_nodes(G, new_pos, nodelist=[j], node_color=col[i], node_size=10-1*k,
                                        alpha=0.6, linewidths=0)
                 k += 1
-    labels = {i: u' '.join([str(n) for n in np.where(c)[0]]) + u'\n> {} <'.format(translit(names[ids[i]].replace(u'\u0456', u'~'), u'ru', reversed=True)) for i, c in enumerate(C)}
-    nx.draw_networkx_labels(G, new_pos, labels, font_size=0.1)
+    if ids is not None and names is not None:
+        labels = {i: u' '.join([str(n) for n in np.where(c)[0]]) + u'\n> {} <'.format(translit(names[ids[i]].replace(u'\u0456', u'~'), u'ru', reversed=True)) for i, c in enumerate(C)}
+        nx.draw_networkx_labels(G, new_pos, labels, font_size=0.1)
     plt.axis('off')
 
     if pdf:
