@@ -4,6 +4,11 @@
 *.bigclam
 *.frName
 
+#tex
+*.aux
+*.synctex.gz
+*.toc
+
 Cache/
 \[Originals\]/
 */.ipynb_checkpoints/
