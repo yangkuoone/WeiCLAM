@@ -6,15 +6,20 @@ from scipy import sparse
 from matplotlib import pyplot as plt
 from transliterate import translit
 from datetime import datetime
+import subprocess
 import sys
+import os
 
 col = ['b', 'r', 'g', 'm', 'c', 'y', '#56A0D3', '#ED9121', '#00563F', '#062A78', '#703642', '#C95A49',
        '#92A1CF', '#ACE1AF', '#007BA7', '#2F847C', '#B2FFFF', '#4997D0',
        '#DE3163', '#EC3B83', '#007BA7', '#2A52BE', '#6D9BC3', '#007AA5',
-       '#E03C31']
+       '#E03C31', '#AAAAAA']
 
 def toBigClamFormat(G, file_name):
-    A = np.array(nx.to_numpy_matrix(G))
+    if isinstance(G, nx.Graph):
+        A = np.array(nx.to_numpy_matrix(G))
+    else:
+        A = G
     G = nx.Graph(A)
     with file(file_name, 'w') as f:
         [f.write('{}\t{}\n'.format(e[0]+1, e[1]+1)) for e in G.edges()]
@@ -266,10 +271,74 @@ def GetNeighborhoodConductance(G, minDeg = 10, pool=None):
         NIdPhiV = np.array(pool.map(GetNeighborhoodConductance_worker, ((u, G) for u in G)))
     else:
         NIdPhiV = np.zeros(shape=(N,))
-        for u in progress(G):
+        for u in G:
             NIdPhiV[u] = 1 if G.degree(u, weight='weight') < minDeg else conductance(G, getEgoGraphNodes(G, u))
     return NIdPhiV
 
+def LancichinettiBenchmark(**kwargs):
+    """
+    Benchmark graphs for testing community detection algorithms from
+    Andrea Lancichinetti, Santo Fortunato and Filippo Radicchi1
+    http://arxiv.org/pdf/0805.4770.pdf
+
+    This function is wrapper for exe file.
+    In future it should be rewritten by Python-C API
+
+    [FLAG]		    [P]
+    :param N		number of nodes
+    :param k		average degree
+    :param maxk		maximum degree
+    :param mut		mixing parameter for the topology
+    :param muw		mixing parameter for the weights
+    :param beta		exponent for the weight distribution
+    :param t1		minus exponent for the degree sequence
+    :param t2		minus exponent for the community size distribution
+    :param minc		minimum for the community sizes
+    :param maxc		maximum for the community sizes
+    :param on		number of overlapping nodes
+    :param om		number of memberships of the overlapping nodes
+    :param C        [average clustering coefficient]
+    """
+
+    default = { 'N': 1000,
+                 'mut': 0.1,
+                 'maxk': 50,
+                 'k': 30,
+                 'om': 2,
+                 'muw': 0.1,
+                 'beta': 2,
+                 't1': 2,
+                 't2': 2,
+                 'on': 100
+                 }
+
+    default.update(kwargs)
+
+    cwd = os.getcwd()
+    os.chdir('../external/Lancichinetti benchmark/')
+
+    with open("parameters.dat", 'w') as f:
+        f.write('\n'.join('-{} {}'.format(key, default[key]) for key in default))
+    with open('outputlog', 'wb') as outputlog:
+        p = subprocess.Popen('benchmark.exe -f parameters.dat', stdout=outputlog, stderr=outputlog)
+        p.wait()
+
+    with open("network.dat") as nw:
+         G = nx.read_weighted_edgelist(nw)
+    with open("community.dat") as nw:
+         comm_inv = {line.split()[0]: line.split()[1:] for line in nw}
+    comm = {}
+    for key in comm_inv:
+        for x in comm_inv[key]:
+            t = int(x)
+            if t in comm:
+                comm[t].append(key)
+            else:
+                comm[t] = [key]
+
+    os.chdir(cwd)
+
+    return G, comm
 
 def draw_loglikelihood_slice(bigClam, F, u, direction, step):
     res = []
@@ -308,3 +377,141 @@ def gradient_check(bigClam, F, Fu, u=None):
     ans = bigClam.gradient(D, u)
     bigClam.sumF = t
     return ans
+
+def MixedModularity(F, A):
+    if isinstance(F, list):
+        F_new = np.zeros((A.shape[0], len(F)))
+        for indx, comm in enumerate(F):
+            for c in comm:
+                F_new[c-1, indx] = 1
+        F = F_new
+    F = F.copy()
+    #print F.shape
+    #F = F > 0.01 * np.sum(A) / (A.shape[0]*(A.shape[0]-1) )
+    Fnorm = np.sum(F, axis=1)
+    F[Fnorm!=0,:] = F[Fnorm!=0, :] * (1.0 / Fnorm[Fnorm!=0, None])
+    m2 = 1.0 * np.sum(A)
+    res = 0.0
+    for i in xrange(F.shape[1]):
+        indx = F[:, i] != 0
+        degs = np.sum(A[indx], axis=1)[:, None]
+        M = A[indx, :][:, indx] - degs.dot(degs.T) / m2
+        M = M * F[indx, [i]][:,None].dot(F[indx, [i]][:,None].T)
+        res += np.sum(M)
+    return res / m2
+
+def GetComms(F, A):
+    C = F > (np.sum(A) / (np.mean(A[A != 0]) * A.shape[0] * (A.shape[0] - 1)))
+    return [np.nonzero(S)[0]+1 for S in C.T if len(np.nonzero(S)[0]) not in {0, C.shape[1]}]
+
+def Conductance(comms, A):
+    G = nx.Graph(A)
+    res = [conductance(G, c) for c in comms]
+    return res
+
+def MeanConductance(F, A):
+    return np.mean(Conductance(F, A))
+
+def MaxConductance(F, A):
+    return np.max(Conductance(F, A))
+
+
+def NMI3(comms, A, Comm_True):
+    with file('../external/Lancichinetti benchmark/clu1-3', 'w') as f:
+        for comm in comms:
+            f.write(" ".join(str(c) for c in comm))
+            f.write('\n')
+
+    with file('../external/Lancichinetti benchmark/clu2-3', 'w') as f:
+        for key in Comm_True:
+            f.write(" ".join(str(c) for c in Comm_True[key]))
+            f.write('\n')
+    cwd = os.getcwd()
+    os.chdir('../external/Lancichinetti benchmark/')
+    with open('outputlog-nmi3', 'wb') as outputlog:
+        p = subprocess.Popen('mutual.exe clu1-3 clu2-3', stdout=outputlog, stderr=outputlog)
+        p.wait()
+    os.chdir(cwd)
+    with file('../external/Lancichinetti benchmark/outputlog-nmi3', 'r') as f:
+        for line in f:
+            res = line.split()
+            return float(res[-1])
+
+def NMI(comms, A, Comm_True):
+    with file('../external/Lancichinetti benchmark/clu1', 'w') as f:
+        for indx, comm in enumerate(comms):
+            for c in comm:
+                f.write("1 {} {}\n".format(c+1, indx))
+
+    with file('../external/Lancichinetti benchmark/clu2', 'w') as f:
+        for key in Comm_True:
+            for c in Comm_True[key]:
+                f.write("1 {} {}\n".format(c, key))
+    cwd = os.getcwd()
+    os.chdir('../external/Lancichinetti benchmark/')
+    with open('outputlog-nmi', 'wb') as outputlog:
+        p = subprocess.Popen('nmi.exe clu1 clu2', stdout=outputlog, stderr=outputlog)
+        p.wait()
+    os.chdir(cwd)
+    with file('../external/Lancichinetti benchmark/outputlog-nmi', 'r') as f:
+        for line in f:
+            res = line.split()
+            if res[0] == 'Multiplex':
+                return float(res[-1])
+
+def bigclam_orig(A,K):
+    np.fill_diagonal(A, 0)
+    cur_path = os.getcwd()
+    data_dir = '../external/BigClam/'
+    data_file_name = 'test'
+    bigClam_data_file_path = os.path.join(data_dir, data_file_name) + '.bigClam'
+    bigClam_res_prefix = data_dir
+    exe_path = '../external/BigClam/bigclam.exe'
+
+    toBigClamFormat(A, bigClam_data_file_path)
+
+    args = '-i:\"{}\" -o:\"{}\" -c:{} -nt:4'.format(os.path.join(cur_path, bigClam_data_file_path),
+                                               os.path.join(cur_path, bigClam_res_prefix),  K)
+
+    with open('../external/BigClam/bigClam_output.log', 'w') as output_f:
+        subprocess.call('\"{}\" {}'.format(exe_path, args), stdout=output_f, stderr=output_f)
+
+    with open('../external/BigClam/cmtyvv.txt', 'r') as f:
+        res =[[int(x) for x in line.split()] for indx, line in enumerate(f)]
+    return res
+
+def toCorpraFormat(A, file_name):
+    G = nx.Graph(A)
+    with file(file_name, 'w') as f:
+        [f.write('{} {} {}\n'.format(e[0], e[1], e[2]['weight'])) for e in G.edges(data=True)]
+
+def copra(A, K=None):
+    cur_path = os.getcwd()
+    data_dir = '../external/COPRA/'
+    data_file_name = 'test'
+    COPRA_data_file_path = os.path.join(data_dir, data_file_name) + '.COPRA'
+    COPRA_res_prefix = data_dir
+    java_path = '../external/COPRA/copra.jar'
+
+    toCorpraFormat(A, COPRA_data_file_path)
+
+    args = '-w -v 2 -prop 500000'
+
+    with open('../external/COPRA/COPRA_output.log', 'w') as output_f:
+        subprocess.call('java -cp \"{}\" COPRA \"{}\" {}'.format(java_path, COPRA_data_file_path, args),
+                        stdout=output_f, stderr=output_f)
+
+    with open('clusters-test.COPRA', 'r') as f:
+        res = [[int(x) for x in line.split()] for indx, line in enumerate(f)]
+    return res
+
+if __name__ == '__main__':
+    A = 2.0 * test_example()
+    A[2, 1] = 3.0
+    F = np.array([[0, 0, 0, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0, 0]]).T
+    #print MeanConductance(GetComms(F, A), A)
+    print NMI3(GetComms(F, A), A, {0: [4, 1, 2, 3], 1: [7, 4, 5, 6]})
+
+    #print bigclam_orig(nx.Graph(A), 2)
+    #print copra(A, 2)
+    #LancichinettiBenchmark()
