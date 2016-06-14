@@ -8,6 +8,7 @@
 *.aux
 *.synctex.gz
 *.toc
+*.blg
 
 Cache/
 \[Originals\]/
