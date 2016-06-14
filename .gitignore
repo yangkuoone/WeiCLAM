@@ -13,6 +13,24 @@ Cache/
 \[Originals\]/
 */.ipynb_checkpoints/
 /data/dumps/
+*.COPRA
+time_seed.dat
+*.Err
+cmtyvv.txt
+clu1
+clu2
+clu1-3
+clu2-3
+outputlog*
+statistics.dat
+parameters.dat
+network.dat
+community.dat
+
+#too big data
+*data/weighted/FemaleLiver-Data/*
+*/data/weighted/AMiner-Author.txt
+
 
 #python
 *.pyc
@@ -23,7 +41,6 @@ Cache/
 Thumbs.db
 #Ignore files build by Visual Studio
 *.obj
-*.exe
 *.pdb
 *.user
 *.aps
