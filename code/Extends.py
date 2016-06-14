@@ -231,10 +231,10 @@ def getSeedCenters(A, K=None, w=1, pool=None):
     return res
 
 def conductanceLocalMin(G, K=None, cond=None, pool=None):
-    if isinstance(G, np.ndarray):
+    if not isinstance(G, nx.Graph):
         G = nx.Graph(G)
     if K is None:
-        K = nx.number_of_nodes(G)
+        K = len(G)
     InvalidNIDS = []
     if cond is None:
         cond = GetNeighborhoodConductance(G, pool=pool)
@@ -246,8 +246,8 @@ def conductanceLocalMin(G, K=None, cond=None, pool=None):
         if UID in InvalidNIDS:
             continue
         indx.append(UID)
-        NI = G[UID]  # neighbours of UID
-        NI = np.where(NI)[0]
+        NI = G[UID].keys()  # neighbours of UID
+        #NI = np.where(NI)[0]
         InvalidNIDS.extend(NI)
         InvalidNIDS.append(UID)
         CurCID += 1
@@ -265,6 +265,8 @@ def GetNeighborhoodConductance_worker(args):
     return 1 if G.degree(u, weight='weight') < minDeg else conductance(G, getEgoGraphNodes(G, u))
 
 def GetNeighborhoodConductance(G, minDeg = 10, pool=None):
+    if not isinstance(G, nx.Graph):
+        G = nx.Graph(G)
     N = len(G)
     Edges2 = 2*len(G.edge)
     if pool is not None:

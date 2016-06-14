@@ -107,6 +107,7 @@ def worker(iter):
                     else:
                         q = qual_fun[key](F, A, comms)
                 except:
+                    print 'Some err in ' + name,
                     q = -1e-10
                 res[name][key] = q
         return res
@@ -117,24 +118,26 @@ def mean(l):
 
 
 if __name__ == '__main__':
-    Pool = pool.Pool(processes=4)
+    Pool = pool.Pool(processes=5)
 
-    iter_count = 40
+    iter_count = 10
 
     mixing_range = np.linspace(0, 0.7, 21)
+    mixing_range = np.linspace(0, 0.7, 21)
     models_res = []
-    (models_res, mixing_range, mix, data_params) = load(file('../data/dumps/models_res_temp-1-dump'))
+    (models_res, mixing_range, mix, data_params) = load(file('../data/dumps/models_res_temp-3-dump'))
     for i_mix, mix in enumerate(mixing_range):
-        if i_mix < 2:
+        if i_mix < 4:
             continue
         print '{} mix: {}'.format(time(), mix)
         with file(r'..\external\Lancichinetti benchmark\time_seed.dat', 'w') as f:
             f.write(str(seed))
         data_params['on'] = np.floor(data_params['N'] * mix)
         one_graph_res = {name: {key: [] for key in qual_fun} for name in models}
-        # for iter in xrange(iter_count):
-        #     res = worker(iter)
-        res = Pool.map(worker, xrange(iter_count))
+        res = []
+        for iter in xrange(iter_count):
+            res.append(worker(iter))
+        #res = Pool.map(worker, xrange(iter_count))
         for iter in xrange(iter_count):
             for name in one_graph_res:
                 for key in one_graph_res[name]:
