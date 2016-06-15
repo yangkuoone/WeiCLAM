@@ -440,10 +440,13 @@ def NMI3(comms, A, Comm_True):
             return float(res[-1])
 
 def NMI(comms, A, Comm_True):
+
+    #min_indx = min(c for comm in comms for c in comm) - 1
+
     with file('../external/Lancichinetti benchmark/clu1', 'w') as f:
         for indx, comm in enumerate(comms):
             for c in comm:
-                f.write("1 {} {}\n".format(c+1, indx))
+                f.write("1 {} {}\n".format(c, indx))
 
     with file('../external/Lancichinetti benchmark/clu2', 'w') as f:
         for key in Comm_True:
@@ -485,7 +488,7 @@ def bigclam_orig(A,K):
 def toCorpraFormat(A, file_name):
     G = nx.Graph(A)
     with file(file_name, 'w') as f:
-        [f.write('{} {} {}\n'.format(e[0], e[1], e[2]['weight'])) for e in G.edges(data=True)]
+        [f.write('{} {} {}\n'.format(e[0]+1, e[1]+1, e[2]['weight'])) for e in G.edges(data=True)]
 
 def copra(A, K=None):
     cur_path = os.getcwd()
