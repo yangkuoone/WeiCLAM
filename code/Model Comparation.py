@@ -43,12 +43,12 @@ def NMF_clust(A, K):
 
 seed = 21113222
 data_params = {
-    'N': 400,
-     'mut': 0.1,
-     'maxk': 50,
-     'k': 30,
+    'N': 1500,
+     'mut': 0.3,
+     #'maxk': 300,
+     #'k': 150,
      'om': 2,
-     'muw': 0.1,
+     'muw': 0.3,
      'beta': 2,
      't1': 2,
      't2': 2,
@@ -63,7 +63,7 @@ model_params = {
     'iter_output': 20000,
     'processesNo': 1,
     'dump': False,
-    'eps': 1e-2,
+    'eps': 1e-3,
     "max_iter": 500000,
 }
 
@@ -73,7 +73,7 @@ models = {#'BigClam-Zeros': lambda A, K, name: BigClam(1.0 * (A != 0), K, dump_n
           #'BigClam-Zeros-simple': lambda A, K, name: BigClam(1.0 * (A != 0), K, dump_name=name, stepSizeMod='simple', **model_params).fit()[0],
           #'BigClam-Mean': lambda A, K, name: BigClam(1.0 * (A < np.mean(A)), K, dump_name=name, **model_params).fit()[0],
           'BigClamWeighted': lambda A, K, name: BigClam(A, K, dump_name=name, **model_params).fit()[0],
-          'BigClamWeighted-simple': lambda A, K, name: BigClam(A, K, dump_name=name, stepSizeMod='simple', **model_params).fit()[0],
+          #'BigClamWeighted-simple': lambda A, K, name: BigClam(A, K, dump_name=name, stepSizeMod='simple', **model_params).fit()[0],
           #'SparseGamma-p1': lambda A, K, name: BigClamGamma(A, K, dump_name=name, pow=1, **model_params).fit()[0],
           #'SparseGamma-p0.05': lambda A, K, name: BigClamGamma(A, K, dump_name=name, pow=0.05, **model_params).fit()[0],
           'SparseGamma': lambda A, K, name: BigClamGamma(A, K, dump_name=name, **model_params).fit()[0],
@@ -83,13 +83,14 @@ models = {#'BigClam-Zeros': lambda A, K, name: BigClam(1.0 * (A != 0), K, dump_n
           #'BigClam-orig-mean': lambda A, K, name: bigclam_orig(1.0 * (A < np.mean(A)), K),
           'COPRA': lambda A, K, name: copra(A, K),
           'NMF': lambda A, K, name: NMF_clust(A, K),
+          'groundtruth': lambda res: [map(int, res[key]) for key in res],
           #'CPM': lambda A, K, name: [list(x) for x in get_percolated_cliques(nx.from_numpy_matrix(1.0 * (A != 0)), 5)]
         }
 
 qual_fun = {'MixedModularity': MixedModularity,
             '1-MeanConductance': lambda F, A: 1-MeanConductance(GetComms(F, A), A) if not isinstance(F, list) else 1-MeanConductance(F, A),
             '1-MaxConductance': lambda F, A: 1-MaxConductance(GetComms(F, A), A) if not isinstance(F, list) else 1-MaxConductance(F, A),
-            '1-NMI': lambda F,A, true_comm: 1-NMI(GetComms(F, A), A, true_comm) if not isinstance(F, list) else 1-NMI(F, A, true_comm),
+            'NMI': lambda F,A, true_comm: 1-NMI(GetComms(F, A), A, true_comm) if not isinstance(F, list) else NMI(F, A, true_comm),
             #'NMI_new': lambda F,A, true_comm: NMI3(GetComms(F, A), A, true_comm) if not isinstance(F, list) else NMI(F, A, true_comm),
             }
 
@@ -105,9 +106,12 @@ model_files = {'COPRA': ['../external/COPRA/COPRA_output.log', '../external/COPR
                'BigClam-orig-zeros': ['../external/BigClam/bigClam_output.log', '../external/BigClam/test.bigClam', '../external/BigClam/cmtyvv.txt' ]}
 
 def worker_models(args):
-    A, K, name = args
+    A, comms, name = args
     print '!',
-    F = models[name](A, K, name)
+    if name != 'groundtruth':
+        F = models[name](A, len(comms), name)
+    else:
+        F = models[name](comms)
     print '.',
     return name, F
     # if name in model_files and save_all:
@@ -131,8 +135,8 @@ def worker(iter, mix):
             for filename in lanc_bech_files:
                 copyfile('../external/Lancichinetti benchmark/' + filename, cur_save_dir + 'testgraph-' + filename)
         A = np.array(nx.to_numpy_matrix(G))
-        Fs = pool.map(worker_models, zip([A]*len(models), [len(comms)]*len(models), models.keys()))
-        #Fs = [worker_models((A, len(comms), name)) for name in models]
+        Fs = pool.map(worker_models, zip([A]*len(models), [comms]*len(models), models.keys()))
+        #Fs = [worker_models((A, comms, name)) for name in models]
 
         Fs = dict(Fs)
         # for name in models:
@@ -169,18 +173,19 @@ def worker(iter, mix):
 
 
 def mean(l):
-    return 1.0 * sum(l) / len(l)
+    #lt = [x for x in l if 1 > x ]
+    lt = l
+    return 1.0 * sum(lt) / len(lt) if len(lt) > 0 else float('nan')
 
 
 if __name__ == '__main__':
-    pool = Pool(processes=6)
-    iter_count = 20
+    pool = Pool(processes=5)
+    iter_count = 3
     if save_all:
         enshure_dir("../data/dumps/all_exp")
-    mixing_range = np.linspace(0, 0.7, 21)
+    mixing_range = np.linspace(0, 0.7, 11)
     #mixing_range = np.linspace(0, 0.5, 3)
     models_res = []
-    #(models_res, mixing_range, mix, data_params) = load(file('../data/dumps/models_res_temp-3-dump'))
     for i_mix, mix in enumerate(mixing_range):
         print '{} mix: {}'.format(time(), mix)
         with file(r'..\external\Lancichinetti benchmark\time_seed.dat', 'w') as f:
@@ -206,8 +211,13 @@ if __name__ == '__main__':
 
     (models_res, mixing_range, mix, data_params) = load(file('../data/dumps/models_res_full-dump'))
 
-
     # In[49]:
+    # for res in models_res:
+    #     for i, name in enumerate(models):
+    #         for i in xrange(len(res[name]['1-NMI'])):
+    #             if 'NMI' not in res[name]:
+    #                 res[name]['NMI'] = []
+    #             res[name]['NMI'].append(1 - res[name]['1-NMI'][i])
 
 
     plt.figure(figsize=(15, 10))
@@ -217,8 +227,8 @@ if __name__ == '__main__':
         plt.xlabel('mixing parameter')
         colors = plt.get_cmap('hsv')(np.linspace(0, 1.0, len(models) + 1))
         for i, name in enumerate(models):
-            plt.plot(mixing_range, [res[name][qual_name][0] for res in models_res if len(res) != 0], label=name,
-                     color=colors[i])
+            plt.plot(mixing_range, [mean(res[name][qual_name]) for res in models_res if len(res) != 0], label=name,
+                     color=colors[i] if name != 'groundtruth' else 'k')
         if indx == 1:
             plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
     print

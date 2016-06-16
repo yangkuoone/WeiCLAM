@@ -1,0 +1,269 @@
+\documentclass[10pt]{beamer}
+\hypersetup{unicode=true}
+
+\usepackage[russian]{babel}
+\usetheme[progressbar=frametitle]{metropolis}
+%\usepackage{lmodern}
+\usepackage{booktabs}
+\usepackage[scale=2]{ccicons}
+\usepackage{afterpage}
+\usepackage{pgfplots}
+\usepgfplotslibrary{dateplot}
+\usepackage{xspace}
+\usepackage{xcolor}
+
+\newcommand{\themename}{\textbf{\textsc{metropolis}}\xspace}
+\setbeamertemplate{frame footer}{\today \hspace{25px} Выделение пересекающихся сообществ во взвешенных графах.  }
+\title{Курсовая работа}
+\subtitle{Выделение пересекающихся сообществ \\во взвешенных графах }
+\date{\today}
+\author{Константин Славнов\\[30px]}
+\institute{НИУ Высшая школа экономики,\\Институт проблем передач информации РАН}
+\titlegraphic{\hfill\includegraphics[height=1.5cm]{imgs/logo_hse.eps}}
+
+\begin{document}
+	
+	\maketitle
+	
+\begin{frame}{Содержание}
+	\setbeamertemplate{section in toc}[sections numbered]
+	\tableofcontents[hideallsubsections]
+\end{frame}
+	
+\section{Введение, Постановка задачи}
+
+\begin{frame}[fragile]{Введение}	
+	\textbf{Задача:} выделение пересекающихся сообществ:\\
+		
+		\begin{figure}[!ht]
+			\centering
+			\includegraphics[width=0.9\textwidth]{imgs/intro2.png}
+		\end{figure}
+		
+		\textbf{Цель работы:} Создать новый метод выделения сообществ для \textit{взвешенных} графов. \\[10px]
+		
+		 \textbf{Способ решения:} Обобщить метод BigClam на случай взвешенных графов.
+\end{frame}
+
+\begin{frame}[fragile]{Постановка задачи}
+	Рассмотрим двудольный граф
+	\noindent
+	\begin{figure}[!ht]
+		\centering
+		\includegraphics[width=0.9\textwidth]{imgs/BigCLAM_model2.png}
+	\end{figure}
+	\begin{itemize}
+		\item Круглые вершины --- сообщества ($A, B$),
+		\item Квадратные вершины --- исходного графа  ($u$),
+		\item $F_{uA}\ge0$ --- степень принадлежности вершины к сообществу.
+	\end{itemize}
+	
+	\textbf{Задача:} Восстановить матрицу $F$.
+	
+\end{frame}
+
+\section{Метод BigClam}
+
+\begin{frame}[fragile]{Предположения}
+	\begin{enumerate} 
+		\item Введем $X_{uv}^{(c)}$ --- сила взаимодействия $u, v$ в сообществе $c$. Пусть 
+		$$X_{uv}^{(c)} \sim \mathrm{Pois}(F_{uc} \cdot F_{vc})$$\\[5px]
+		
+		\item Тогда $X_{uv}$ --- сила взаимодействия $u, v$ в графе 
+		$$X_{uv} \sim \mathrm{Pois}(\sum_{c} F_{uc} \cdot F_{vc}) = \mathrm{Pois}(F_{u} \cdot F_{v}^T).$$\\[5px]
+		
+		\item Считаем, что ребро появляется если  $X_{uv} > 0$. Тогда 
+		$$p(u,v) = \mathbb{P}(X_{uv} > 0) = 1 - \exp( - F_{u} F_{v}^T),$$\\[5px]
+	\end{enumerate}
+	
+\end{frame}
+
+\begin{frame}[fragile]{ Cluster Affliation Model for Big Networks (BigClam)}
+	Выпишем правдоподобие
+	$$
+	l(F) = \sum_{(u,v)\in E} \log(1 - \exp( - F_{u} F_{v}^T)) - \sum_{(u,v) \notin E} F_u F_v^T \rightarrow \max_{F\ge0}.
+	$$
+	
+	Оптимизация методом блочного координатного спуска:
+	
+	$$\nabla l(F_u) = \sum_{v \in \mathcal{N}(u)} F_u \dfrac{\exp(-F_u F_v^T)}{1-\exp(-F_u F_v^T)} - \sum_{v \notin \mathcal{N}(u)} F_v^T. $$
+	Заметим, что 
+	$$\sum_{v \notin \mathcal{N}(u)} F_v^T = \sum_v{F_v} - F_u - \sum_{v\in \mathcal{N}(u)} F_v.$$ 
+	
+	Cложность одной итерации --- $O(\mathcal{N}(u))$. 
+\end{frame}
+
+\section{Новый метод для взвешенных графов}
+
+\begin{frame}[fragile]{Наивный подход}
+	
+	Формально изменим функционал
+	$$l(F) = \sum_{(u,v)\in E} \log\left(1 - \exp\left( - \dfrac{F_{u} F_{v}^T}{\textcolor{red}{w_{uv}}}\right)\right) - \sum_{(u,v) \notin E} F_{u} F_{v}^T \rightarrow \max_{F\ge0}.$$\\[30px]
+	
+	\textbf{Недостатки}.
+	\begin{enumerate}
+		\item Наличие и отсутствие ребра вносят разный вклад в функционал.
+		\item Нельзя использовать для генерации графов. 
+		\item Нет вероятностной интерпретации.
+	\end{enumerate}
+	
+\end{frame}
+
+\begin{frame}[fragile]{Sparse Gamma Model. Предположения}
+	Предлопожим, что данные генерируются по следующему алгоритму.
+	\begin{enumerate} 
+		\item В графе создается ребро $(u, v) \in E$ с вероятностью 
+		$$1 - \exp(-\gamma F_u {F_v}^T)$$
+		\item Для созданных ребер генерируется их вес 
+		$$w_{uv} \sim \mathrm{\Gamma}\left(\sum_c F_{uc} F_{vc} + 1, 1\right).$$
+	\end{enumerate}
+	
+	$\gamma\ge0$ --- дополнительный параметр модели.\\
+	$\mathrm{\Gamma}(\theta, k) $ --- Гамма распределение.
+\end{frame}
+
+\begin{frame}[fragile]{Sparse Gamma Model. Анализ модели}
+	Выпишем правдоподобие
+	$$
+	\sum_{(u,v)\in E} \log \mathrm{P_\Gamma}(w_{uv}) + \sum_{(u,v)\in E} \log\left(1-\exp\left(-\gamma F_u F_v^T\right)\right) - \gamma \sum_{(u,v)\notin E} F_u F_v^T  \rightarrow \max_{F\ge0}.
+	$$
+	
+	$$
+	\log \mathrm{P_\Gamma}(w_{uv}) = \left[-\log\mathrm{\Gamma}\left( F_u F_v^T + 1 \right) + F_u F_v^T \cdot\log w_{uv} - w_{uv}\right].
+	$$
+	
+	Последние 2 слагаемых --- это оригинальная BigClam модель для матрицы $\sqrt \gamma F$.
+	
+	\begin{itemize}
+		\item Модель --- комбинация BigClam и Gamma Модели весов.
+		\item Скорость вычисления производной --- $O(\mathcal{N}(u))$.
+		\item Учитывает взвешенные ребра.
+		\item Универсальность. Гамма заменяется на любое другое аддитивное распределение.
+	\end{itemize}
+	
+\end{frame}
+
+\section{Эксперименты}
+
+\begin{frame}[fragile]{Данные и методы}
+	Модельные данные (бенчмарк от Lancichinetti). \\
+	Варьируется $x$ --- доля вершин в пересекающихся частях сообществ.
+
+	\textbf{Методы}:
+		\begin{enumerate}
+			\item \textbf{SparseGamma}			--- Разреженная гамма модель.
+			\item \textbf{BigClamWeighted}		--- наивный взвешенный BigClam.
+			\item \textbf{BigClam-orig-zeros}	--- оригинальный BigClam.
+			\item \textbf{COPRA}				--- label propagation для пересекающегося случая.
+			\item \textbf{NMF}					--- Неотрицательное матричное разложение.
+		\end{enumerate}
+		
+	\textbf{Метрики}: \\
+	Conductance(Среднее и максимум), Normalized Mutal Information,  Модулярность.
+\end{frame}
+\setbeamertemplate{frame footer}{ \space }
+\begin{frame}[fragile]{Результат}
+
+	\begin{figure}[!h]
+		\centering
+		\includegraphics[width=\textwidth]{imgs/experiments_1000_2.png}
+	\end{figure}
+\end{frame}
+
+\setbeamertemplate{frame footer}{\today \hspace{25px} Выделение пересекающихся сообществ во взвешенных графах.  }
+\begin{frame}[fragile]{Выводы}
+	\textbf{Наблюдения}.
+	\begin{enumerate}
+		\item \textit{NMF} имеет подавляющее преимущество по функционалам связанными с проводимостью, но не по NMI.
+		\item \textit{COPRA} с некоторого момента начинает выдавать одно большое сообщество.
+		\item С ростом параметра $x$ алгоритмы начинают лучше справляться с поставленной задачей.
+	\end{enumerate}
+	\bigskip
+	
+	\textit{SparseGamma} и \textit{BigClamWeighted}  ведут себя так же как \textit{BigCLam}, принципиального улучшения не достигнуто.
+
+\end{frame}
+\setbeamertemplate{frame footer}{ \space }
+\begin{frame}[fragile]
+	\centerline{\includegraphics[width=\textwidth]{imgs/graph.png}}
+\end{frame}
+
+\begin{frame}[fragile]
+	\centerline{\includegraphics[width=\textwidth]{imgs/graph2.png}}
+\end{frame}
+
+\begin{frame}[fragile]
+	\centerline{\includegraphics[width=\textwidth]{imgs/graph3.png}}
+\end{frame}
+
+\begin{frame}[fragile]
+	\centerline{\includegraphics[width=0.95\textwidth]{imgs/graph4.png}}
+\end{frame}
+
+\appendix
+\setbeamertemplate{frame footer}{\today \hspace{25px} Выделение пересекающихся сообществ во взвешенных графах.  }
+\section{Про инициализацию}
+
+\begin{frame}[fragile]{Оригинальный подход}
+	
+	Введем метрику $\phi(S)$ --- проводимость или Conductance $ S \subset V $.
+	$$\phi(S) = \dfrac{\mathrm{cut}(S)}{\min(\mathrm{vol}(S), \mathrm{vol}( \bar S))}$$
+	
+	Выбираем эго-графы, которые достигают локального максимума $\phi(S)$, сортируем по возрастанию. Выбираем $K$ первых для инициализации.
+	Т.е. для $S_1, \dots, S_K$, $i \in V $
+	$$ 
+	F_{ij}=	
+	\begin{cases} 	1,  \text{если } i \in S_j;\\
+	0,  \text{иначе. } 
+	\end{cases}
+	$$
+	
+	\textbf{Недостатки.}
+	\begin{enumerate}
+		\item $F$ детерминирована.
+		\item $F_{uv} \in \{0; 1\}$, большая часть нули. А $F=0$ --- точка локального минимума.
+		\item Часто 2 или больше $S_i$ лежат в одном сообществе. 
+	\end{enumerate}
+\end{frame}
+ 
+\begin{frame}[fragile]{Новый подход}
+	Дополнительная пенализация. $R$ --- доля уже выбранных вершин $F_{\mathrm{selected}}$, которые попали в рассматриваемый эго-граф $F_{\mathrm{ego}_i}$
+	$$R = \gamma \cdot\dfrac{{F_{\mathrm{selected}}}^T  F_{\mathrm{ego}_i}}{\|F_{\mathrm{selected}}\|} .$$
+	 
+	Вместо нулей --- равномерный шум в диапазоне $[0; 0,1]$.\\
+	\pause
+	\begin{figure}[!h]
+		\centering
+		\includegraphics[width=\textwidth]{imgs/model_example_graph_good_init_pres.png}
+	\end{figure}
+	
+\end{frame}
+ 
+\begin{frame}[fragile]{Эксперименты}
+	
+	\begin{figure}[!h]
+		\centering
+		\includegraphics[width=\textwidth]{imgs/init_llh_real.png}
+	\end{figure}
+	
+\end{frame}
+
+\begin{frame}[fragile]{Расшифровка названий методов}
+	\footnotesize{
+	\begin{tabular}{ p{9em}   p{24em} }
+		\hline
+		\textbf{Обозначение} & \textbf{Описание} \\
+		\hline
+		\textit{rand} 				& Инициализация равномерным шумом от 0.75 до 1.25 \\[2px]
+		\textit{cond} 				& Инициализация в локальных максимумах проводимости (стандартный метод) \\[2px]
+		\textit{cond\_new} 			& Новый метод со штрафом за пересечение с уже выбранными вершинами \\[2px]
+		\textit{cond\_randz} 		& Дополнительно заменяем нули из метода *cond* на значения от 0 до 0.1 \\[2px]
+		\textit{cond\_new\_randz} 	& Дополнительно заменяем нули из метода *cond\_new* на значения от 0 до 0.1 \\[2px]
+		\textit{cond\_randz\_spr} 	& Применяем метод \textit{cond}. Соседние с найденными эго-графами вершины получают половину его веса. Затем заменяем нули матрицы $F$ на значения от 0 до 0.1 \\[2px]
+		\textit{cond\_new\_randz\_spr} & Применяем метод \textit{cond\_new}. Соседние с найденными сообществами вершины получают половину его веса. Затем заменяем нули матрицы $F$ на значения от 0 до 0.1 \\[2px]
+		\hline
+	\end{tabular}
+}
+\end{frame}
+	
+\end{document}
