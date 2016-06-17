@@ -12,6 +12,12 @@ Jaewon Yang and Jure Leskovec.
   factorization approach.
 \newblock In {\em Proceedings of the sixth ACM international conference on Web
   search and data mining}, pages 587--596. ACM, 2013.
+\newblock \\ \url{http://i.stanford.edu/~crucis/pubs/paper-nmfagm.pdf}.
+
+\bibitem{boyd2004convex}
+Stephen Boyd and Lieven Vandenberghe.
+\newblock {\em Convex optimization}.
+\newblock Cambridge university press, 2004.
 
 \bibitem{gleich2011neighborhoods}
 David Gleich and C~Seshadhri.
