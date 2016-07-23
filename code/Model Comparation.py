@@ -43,8 +43,8 @@ def NMF_clust(A, K):
 
 seed = 21113222
 data_params = {
-    'N': 1500,
-     'mut': 0.3,
+    'N': 5000,
+     'mut': 0.1,
      #'maxk': 300,
      #'k': 150,
      'om': 2,

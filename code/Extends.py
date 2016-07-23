@@ -9,6 +9,7 @@ from datetime import datetime
 import subprocess
 import sys
 import os
+import shutil
 
 col = ['b', 'r', 'g', 'm', 'c', 'y', '#56A0D3', '#ED9121', '#00563F', '#062A78', '#703642', '#C95A49',
        '#92A1CF', '#ACE1AF', '#007BA7', '#2F847C', '#B2FFFF', '#4997D0',
@@ -326,7 +327,7 @@ def LancichinettiBenchmark(**kwargs):
         p.wait()
 
     with open("network.dat") as nw:
-         G = nx.read_weighted_edgelist(nw)
+        G = nx.read_weighted_edgelist(nw)
     with open("community.dat") as nw:
          comm_inv = {line.split()[0]: line.split()[1:] for line in nw}
     comm = {}
@@ -417,16 +418,18 @@ def MeanConductance(F, A):
 def MaxConductance(F, A):
     return np.max(Conductance(F, A))
 
+def sorted_t(list):
+    return sorted(list, key=lambda x: int(x))
 
 def NMI3(comms, A, Comm_True):
     with file('../external/Lancichinetti benchmark/clu1-3', 'w') as f:
         for comm in comms:
-            f.write(" ".join(str(c) for c in comm))
+            f.write(" ".join(str(c) for c in sorted_t(comm)))
             f.write('\n')
 
     with file('../external/Lancichinetti benchmark/clu2-3', 'w') as f:
         for key in Comm_True:
-            f.write(" ".join(str(c) for c in Comm_True[key]))
+            f.write(" ".join(str(c) for c in sorted_t(Comm_True[key])))
             f.write('\n')
     cwd = os.getcwd()
     os.chdir('../external/Lancichinetti benchmark/')
@@ -445,12 +448,12 @@ def NMI(comms, A, Comm_True):
 
     with file('../external/Lancichinetti benchmark/clu1', 'w') as f:
         for indx, comm in enumerate(comms):
-            for c in comm:
+            for c in sorted_t(comm):
                 f.write("1 {} {}\n".format(c, indx))
 
     with file('../external/Lancichinetti benchmark/clu2', 'w') as f:
         for key in Comm_True:
-            for c in Comm_True[key]:
+            for c in sorted_t(Comm_True[key]):
                 f.write("1 {} {}\n".format(c, key))
     cwd = os.getcwd()
     os.chdir('../external/Lancichinetti benchmark/')
@@ -491,11 +494,9 @@ def toCorpraFormat(A, file_name):
         [f.write('{} {} {}\n'.format(e[0]+1, e[1]+1, e[2]['weight'])) for e in G.edges(data=True)]
 
 def copra(A, K=None):
-    cur_path = os.getcwd()
     data_dir = '../external/COPRA/'
     data_file_name = 'test'
     COPRA_data_file_path = os.path.join(data_dir, data_file_name) + '.COPRA'
-    COPRA_res_prefix = data_dir
     java_path = '../external/COPRA/copra.jar'
 
     toCorpraFormat(A, COPRA_data_file_path)
@@ -510,13 +511,53 @@ def copra(A, K=None):
         res = [[int(x) for x in line.split()] for indx, line in enumerate(f)]
     return res
 
+def CFinder(A, K):
+    cur_path = os.getcwd()
+    data_dir = '../external/CFinder-2.0.6--1448'
+    data_file_name = 'test'
+    cFinder_data_file_path = os.path.join(data_dir, data_file_name) + '.cfinder'
+    cFinder_licence_file_path = os.path.join(data_dir, 'licence.txt')
+    cFinder_res_prefix = os.path.join(data_dir, 'res')
+    shutil.rmtree(cFinder_res_prefix)
+    exe_path = '../external/CFinder-2.0.6--1448/CFinder_commandline.exe'
+
+    toCorpraFormat(A, cFinder_data_file_path)
+
+    args = '-i \"{}\" -o \"{}\" -l \"{}\" -k 4'.format(os.path.join(cur_path, cFinder_data_file_path),
+                                                  os.path.join(cur_path, cFinder_res_prefix),
+                                                  os.path.join(cur_path, cFinder_licence_file_path))
+
+    with open('../external/CFinder-2.0.6--1448/CFinder_output.log', 'w') as output_f:
+        subprocess.call('\"{}\" {}'.format(exe_path, args), stdout=output_f, stderr=output_f)
+
+    res = []
+    with open('../external/CFinder-2.0.6--1448/res/k=4/communities', 'r') as f:
+        for indx, line in enumerate(f):
+            if line[0] != '#' and line[0] != '\n':
+                res.append([int(x) for x in line.split(':')[1].split()])
+    return res
+
+def walktrap(A, K):
+    import igraph
+    G = igraph.Graph.Adjacency((A > 0).tolist())
+    G.es['weight'] = A[A.nonzero()]
+    clust = G.community_walktrap(weights='weight').as_clustering()
+    return [[xt+1 for xt in x] for x in clust]
+
 if __name__ == '__main__':
     A = 2.0 * test_example()
     A[2, 1] = 3.0
-    F = np.array([[0, 0, 0, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0, 0]]).T
+
+    print walktrap(A, 2)
+    print CFinder(A, 2)
+    print copra(A, 2)
+    print bigclam_orig(A, 2)
+
+    #F = np.array([[0, 0, 0, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0, 0]]).T
     #print MeanConductance(GetComms(F, A), A)
-    print NMI3(GetComms(F, A), A, {0: [4, 1, 2, 3], 1: [7, 4, 5, 6]})
+    #print NMI3(GetComms(F, A), A, {0: [4, 1, 2, 3], 1: [7, 4, 5, 6]})
 
     #print bigclam_orig(nx.Graph(A), 2)
     #print copra(A, 2)
     #LancichinettiBenchmark()
+
