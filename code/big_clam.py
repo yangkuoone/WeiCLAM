@@ -161,7 +161,7 @@ class BigClam(object):
 
 
         F = np.zeros((self.N, self.K))
-        F[:, 0:len(NIdPhiV)] = A[NIdPhiV].T
+        F[:, 0:len(NIdPhiV)] = (A[NIdPhiV].T != 0)
 
         if len(NIdPhiV) < self.K:
             if self.debug_output:

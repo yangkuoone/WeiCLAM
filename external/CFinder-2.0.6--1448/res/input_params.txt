@@ -1,0 +1,6 @@
+# CFinder was run on links taken from D:\YandexDisk\projects\data Mining and science problems\MMOS\BigClam_2\code\D:\YandexDisk\projects\data Mining and science problems\MMOS\BigClam_2\code\../external/CFinder-2.0.6--1448\test.cfinder
+# at no lower link weight threshold,
+# and at no upper link weight threshold.
+# Links were treated as undirected.
+# No time limit was set for the clique search.
+# The communities were extracted solely at k=4.
