@@ -144,6 +144,7 @@ def progress(list, update_interval=1):
     N = len(list)
     start = datetime.now()
     last = start
+    sys.stdout.write("\rProgress: {:.2f}% | ETA/Total: {:.2f}/{:.2f} sec {}".format(0, float('nan'), float('nan'), ' '))
     for index, val in enumerate(list):
         yield val
         time = datetime.now()
@@ -216,12 +217,12 @@ def conductance(G, S, T=None, weight=None):
 
     return num_cut_edges / min(volume_S, volume_T)
 
-def getSeedCenters(A, K=None, w=1, pool=None):
+def getSeedCenters(A, K=None, w=10, pool=None):
     G = nx.Graph(A)
     if K is None:
         K = nx.number_of_nodes(G)
     cond = GetNeighborhoodConductance(G, pool=pool)
-    local_max = conductanceLocalMin(G, K, cond, pool)
+    local_max = conductanceLocalMin(G, None, cond, pool)
     res = [local_max.pop(0)]
 
     while len(res) < K and len(local_max) > 0:
