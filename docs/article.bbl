@@ -1,0 +1,101 @@
+\providecommand{\bysame}{\leavevmode\hbox to3em{\hrulefill}\thinspace}
+\providecommand{\MR}{\relax\ifhmode\unskip\space\fi MR }
+% \MRhref is called by the amsart/book/proc definition of \MR.
+\providecommand{\MRhref}[2]{%
+  \href{http://www.ams.org/mathscinet-getitem?mr=#1}{#2}
+}
+\providecommand{\href}[2]{#2}
+\begin{thebibliography}{10}
+
+\bibitem{airoldi2008mixed}
+Edoardo~M Airoldi, David~M Blei, Stephen~E Fienberg, and Eric~P Xing,
+  \emph{Mixed membership stochastic blockmodels}, Journal of Machine Learning
+  Research \textbf{9} (2008), no.~Sep, 1981--2014, \\
+  \url{http://www.arxiv.org/abs/0709.2938}.
+
+\bibitem{backstrom2006group}
+Lars Backstrom, Dan Huttenlocher, Jon Kleinberg, and Xiangyang Lan, \emph{Group
+  formation in large social networks: membership, growth, and evolution},
+  Proceedings of the 12th ACM SIGKDD international conference on Knowledge
+  discovery and data mining, ACM, 2006, \\
+  \url{https://www.cs.cornell.edu/home/kleinber/kdd06-comm.pdf}, pp.~44--54.
+
+\bibitem{boyd2004convex}
+Stephen Boyd and Lieven Vandenberghe, \emph{Convex optimization}, Cambridge
+  university press, 2004.
+
+\bibitem{Fortunato10}
+Santo Fortunato, \emph{Community detection in graphs}, Physics Reports
+  \textbf{486} (2010), no.~3, 75--174, \\
+  \url{http://www.arxiv.org/abs/0906.0612}.
+
+\bibitem{girvan2002community}
+Michelle Girvan and Mark~EJ Newman, \emph{Community structure in social and
+  biological networks}, Proceedings of the national academy of sciences
+  \textbf{99} (2002), no.~12, 7821--7826, \\
+  \url{http://arxiv.org/pdf/cond-mat/0112110.pdf}.
+
+\bibitem{gleich2011neighborhoods}
+David Gleich and C~Seshadhri, \emph{Neighborhoods are good communities}, arXiv
+  preprint arXiv:1112.0031 (2011), \\ \url{http://arxiv.org/abs/1112.0031}.
+
+\bibitem{gregory2010finding}
+Steve Gregory, \emph{Finding overlapping communities in networks by label
+  propagation}, New Journal of Physics \textbf{12} (2010), no.~10, 103018, \\
+  \url{https://arxiv.org/abs/0910.5516}.
+
+\bibitem{krogan2006global}
+Nevan~J Krogan, Gerard Cagney, Haiyuan Yu, Gouqing Zhong, Xinghua Guo, Alexandr
+  Ignatchenko, Joyce Li, Shuye Pu, Nira Datta, Aaron~P Tikuisis, et~al.,
+  \emph{Global landscape of protein complexes in the yeast saccharomyces
+  cerevisiae}, Nature \textbf{440} (2006), no.~7084, 637--643, \\
+  \url{http://www.nature.com/nature/journal/v440/n7084/full/nature04670.html}.
+
+\bibitem{lancichinetti2009benchmarks}
+Andrea Lancichinetti and Santo Fortunato, \emph{Benchmarks for testing
+  community detection algorithms on directed and weighted graphs with
+  overlapping communities}, Physical Review E \textbf{80} (2009), no.~1,
+  016118, \\ \url{https://arxiv.org/abs/0904.3940}.
+
+\bibitem{lancichinetti2009detecting}
+Andrea Lancichinetti, Santo Fortunato, and J{\'a}nos Kert{\'e}sz,
+  \emph{Detecting the overlapping and hierarchical community structure in
+  complex networks}, New Journal of Physics \textbf{11} (2009), no.~3, 033015,
+  \\ \url{https://arxiv.org/abs/0802.1218}.
+
+\bibitem{lin2007projected}
+Chih-Jen Lin, \emph{Projected gradient methods for nonnegative matrix
+  factorization}, Neural computation \textbf{19} (2007), no.~10, 2756--2779, \\
+  \url{http://ntur.lib.ntu.edu.tw/bitstream/246246/20060927122855117716/1/pgradnmf.pdf}.
+
+\bibitem{lu2015algorithms}
+Zongqing Lu, Xiao Sun, Yonggang Wen, Guohong Cao, and Thomas La~Porta,
+  \emph{Algorithms and applications for community detection in weighted
+  networks}, Parallel and Distributed Systems, IEEE Transactions on \textbf{26}
+  (2015), no.~11, 2916--2926, \\
+  \url{http://mcn.cse.psu.edu/paper/zongqing/tpds-zongqing15.pdf}.
+
+\bibitem{palla2005uncovering}
+Gergely Palla, Imre Der{\'e}nyi, Ill{\'e}s Farkas, and Tam{\'a}s Vicsek,
+  \emph{Uncovering the overlapping community structure of complex networks in
+  nature and society}, Nature \textbf{435} (2005), no.~7043, 814--818, \\
+  \url{http://cfinder.org/wiki/papers/communitylettm.pdf}.
+
+\bibitem{Pascal05}
+Pascal Pons and Matthieu Latapy, \emph{Computing communities in large networks
+  using random walks}, Computer and Information Sciences-ISCIS 2005, Springer,
+  2005, \\ \url{http://arxiv.org/abs/physics/0512106v1}, pp.~284--293.
+
+\bibitem{xie2013overlapping}
+Jierui Xie, Stephen Kelley, and Boleslaw~K Szymanski, \emph{Overlapping
+  community detection in networks: The state-of-the-art and comparative study},
+  Acm computing surveys (csur) \textbf{45} (2013), no.~4, 43, \\
+  \url{https://arxiv.org/abs/1110.5813}.
+
+\bibitem{yang2013overlapping}
+Jaewon Yang and Jure Leskovec, \emph{Overlapping community detection at scale:
+  a nonnegative matrix factorization approach}, Proceedings of the sixth ACM
+  international conference on Web search and data mining, ACM, 2013, \\
+  \url{http://i.stanford.edu/~crucis/pubs/paper-nmfagm.pdf}, pp.~587--596.
+
+\end{thebibliography}

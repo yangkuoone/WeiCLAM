@@ -398,5 +398,30 @@ if __name__ == "__main__":
     # DATA_PATH = r'../data/SNAP/facebook_combined.txt'
     # G = nx.read_edgelist(DATA_PATH)
     # A = nx.adjacency_matrix(G).toarray()
-    bc = BigClam(A, 3, initF='rand', processesNo=1)
-    F = bc.fit()
+
+    K = 4
+    import os
+
+    DATA_PATH = '../data/vk/'
+    ego_paths = [f for f in os.listdir(DATA_PATH) if f.endswith(".ego")]
+    # ego_paths = ego_paths[:2]
+    inits = ['cond_new']
+    Fss = []
+    initFss = []
+    itersLLHs = []
+    for indx, ego in enumerate(ego_paths):
+        D = cPickle.load(file('../data/vk/{}'.format(ego)))
+        G = nx.Graph(D)
+        A = np.array(nx.to_numpy_matrix(G))
+        Fs = []
+        initFs = []
+        itersLLH = []
+        for init in inits:
+            bigClam = BigClam(A, K, initF=init, debug_output=False, LLH_output=False, eps=1e-4, iter_output=1, processesNo=1)
+            res = bigClam.fit()
+            initFs.append(bigClam.initFmode)
+            itersLLH.append(bigClam.LLH_output_vals)
+            Fs.append(res[0])
+        itersLLHs.append(itersLLH)
+        initFss.append(initFs)
+        Fss.append(Fs)
