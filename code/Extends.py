@@ -4,7 +4,7 @@ import networkx as nx
 import numpy as np
 from scipy import sparse
 from matplotlib import pyplot as plt
-from transliterate import translit
+#from transliterate import translit
 from datetime import datetime
 import subprocess
 import sys
@@ -410,7 +410,7 @@ def GetComms(F, A):
 
 def Conductance(comms, A):
     G = nx.Graph(A)
-    res = [conductance(G, c) for c in comms]
+    res = [conductance(G, c, weight='weight') for c in comms]
     return res
 
 def MeanConductance(F, A):
@@ -547,15 +547,22 @@ def walktrap(A, K):
 
 if __name__ == '__main__':
     A = 2.0 * test_example()
-    A[2, 1] = 3.0
+    A[0, 1] = 3.0
 
-    print walktrap(A, 2)
-    print CFinder(A, 2)
-    print copra(A, 2)
-    print bigclam_orig(A, 2)
+    # print walktrap(A, 2)
+    # print CFinder(A, 2)
+    # print copra(A, 2)
+    # print bigclam_orig(A, 2)
 
-    #F = np.array([[0, 0, 0, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0, 0]]).T
-    #print MeanConductance(GetComms(F, A), A)
+    F = np.array([[0, 0, 0, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0, 0]]).T
+    A[1, 0] = A[0, 1] = 3.0
+    print MeanConductance(GetComms(F, A), A)
+
+    A[1, 0] = A[0, 1] = 30.0
+    print MeanConductance(GetComms(F, A), A)
+
+    A[1, 0] = A[0, 1] = 300.0
+    print MeanConductance(GetComms(F, A), A)
     #print NMI3(GetComms(F, A), A, {0: [4, 1, 2, 3], 1: [7, 4, 5, 6]})
 
     #print bigclam_orig(nx.Graph(A), 2)
