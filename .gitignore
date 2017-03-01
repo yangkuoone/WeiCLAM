@@ -3,6 +3,9 @@
 *.hist
 *.bigclam
 *.frName
+*.egonet
+
+data/
 
 #tex
 *.aux
