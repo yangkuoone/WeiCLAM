@@ -14,8 +14,9 @@ class BigClam(object):
 
     def __init__(self, A=None, K=None, debug_output=False, LLH_output=True, sparsity_coef = 0, initF='cond', eps=1e-4,
                  iter_output=None, alpha=None, rand_init_coef=0.1, stepSizeMod="backtracking", processesNo=None,
-                 save_hist=False, max_iter=1000000, dump=False, dump_name = None):
-        np.random.seed(1125582)
+                 save_hist=False, max_iter=1000000, dump=False, dump_name=None, seed=None):
+        if seed is not None:
+            np.random.seed(seed)  # 1125582
         self.A = A.copy()
         self.K = K
         self.N = self.A.shape[0]

@@ -117,7 +117,7 @@ if __name__ == "__main__":
     C[B != 0] = 1
 
     w_model3r = BigClamGamma(B, 3, debug_output=False, LLH_output=True, initF='cond_new_randz_spr', iter_output=1, processesNo=1,
-                             rand_init_coef=0.5, stepSizeMod="backtracking0")
+                             rand_init_coef=0.5, stepSizeMod="simple", pow=0.05)
     F_model3r, LLH3r = w_model3r.fit()
 
     draw_res(B, F_true, F_model3r)

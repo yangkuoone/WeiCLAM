@@ -74,6 +74,7 @@ def worker(iter, mix):
         res = {name: {key: 0 for key in qual_fun} for name in models}
         print ' {}:'.format(iter),
         G, comms = LancichinettiBenchmark(**data_params)
+        print('Comms size: {}, {}'.format(len(comms), [len(comms[x]) for x in comms]))
         if save_all:
             cur_save_dir = "../data/dumps/all_exp/{:.3f}/".format(mix)
             enshure_dir(cur_save_dir)
@@ -145,26 +146,29 @@ model_params = {
 
 # In[13]:
 
-models = {#         'BigClam-Zeros': lambda A, K, name: BigClam(1.0 * (A != 0), K, dump_name=name, **model_params).fit()[0],
-          #'BigClam-Zeros-simple': lambda A, K, name: BigClam(1.0 * (A != 0), K, dump_name=name, stepSizeMod='simple', **model_params).fit()[0],
-          #'BigClam-Mean': lambda A, K, name: BigClam(1.0 * (A < np.mean(A)), K, dump_name=name, **model_params).fit()[0],
-          'BigClamWeighted': lambda A, K, name: BigClam(A, K, dump_name=name, **model_params).fit()[0],
-          #'BigClamWeighted-simple': lambda A, K, name: BigClam(A, K, dump_name=name, stepSizeMod='simple', **model_params).fit()[0],
-          #'SparseGamma-p1': lambda A, K, name: BigClamGamma(A, K, dump_name=name, pow=1, **model_params).fit()[0],
-          #'SparseGamma-p0.05': lambda A, K, name: BigClamGamma(A, K, dump_name=name, pow=0.05, **model_params).fit()[0],
-          'SparseGamma': lambda A, K, name: BigClamGamma(A, K, dump_name=name, **model_params).fit()[0],
-          'BigClam': lambda A, K, name: bigclam_orig(1.0 * (A != 0), K),
-          #'BigClamWeighted-sp10': lambda A, K, name: BigClam(A, K, dump_name=name, sparsity_coef=10,  **model_params).fit()[0],
-          #'SparseGamma-sp10': lambda A, K, name: BigClamGamma(A, K, dump_name=name, sparsity_coef=10, **model_params).fit()[0],
-          #'BigClam-orig-mean': lambda A, K, name: bigclam_orig(1.0 * (A < np.mean(A)), K),
-          'COPRA': lambda A, K, name: copra(A, K),
-          'NMF': lambda A, K, name: NMF_clust(A, K),
-          'groundtruth': lambda res: [map(int, res[key]) for key in res],
-          #'CFinder': lambda A, K, name: CFinder(A, K),
-          #'CPM': lambda A, K, name: [list(x) for x in get_percolated_cliques(nx.from_numpy_matrix(1.0 * (A != 0)), 5)]
-          'walktrap': lambda A, K, name: walktrap(A, K),
-        }
-
+models = {
+    # 'BigClam-backtracking': lambda A, K, name: BigClam(1.0 * (A != 0), K, dump_name=name, stepSizeMod="backtracking", **model_params).fit()[0],
+    'BigClam-simple': lambda A, K, name:
+    BigClam(1.0 * (A != 0), K, dump_name=name, stepSizeMod="simple", **model_params).fit()[0],
+    # 'BigClam-Zeros-simple': lambda A, K, name: BigClam(1.0 * (A != 0), K, dump_name=name, stepSizeMod='simple', **model_params).fit()[0],
+    # 'BigClam-Mean': lambda A, K, name: BigClam(1.0 * (A < np.mean(A)), K, dump_name=name, **model_params).fit()[0],
+    # 'BigClamWeighted': lambda A, K, name: BigClam(A, K, dump_name=name, **model_params).fit()[0],
+    'BigClamWeighted-simple': lambda A, K, name:
+    BigClam(A, K, dump_name=name, stepSizeMod='simple', **model_params).fit()[0],
+    # 'SparseGamma-p1': lambda A, K, name: BigClamGamma(A, K, dump_name=name, pow=1, **model_params).fit()[0],
+    # 'SparseGamma-p0.05': lambda A, K, name: BigClamGamma(A, K, dump_name=name, pow=0.05, **model_params).fit()[0],
+    'SparseGamma': lambda A, K, name: BigClamGamma(A, K, dump_name=name, **model_params).fit()[0],
+    'BigClam': lambda A, K, name: bigclam_orig(1.0 * (A != 0), K),
+    # 'BigClamWeighted-sp10': lambda A, K, name: BigClam(A, K, dump_name=name, sparsity_coef=10,  **model_params).fit()[0],
+    # 'SparseGamma-sp10': lambda A, K, name: BigClamGamma(A, K, dump_name=name, sparsity_coef=10, **model_params).fit()[0],
+    # 'BigClam-orig-mean': lambda A, K, name: bigclam_orig(1.0 * (A < np.mean(A)), K),
+    'COPRA': lambda A, K, name: copra(A, K),
+    'NMF': lambda A, K, name: NMF_clust(A, K),
+    'groundtruth': lambda res: [map(int, res[key]) for key in res],
+    # 'CFinder': lambda A, K, name: CFinder(A, K),
+    # 'CPM': lambda A, K, name: [list(x) for x in get_percolated_cliques(nx.from_numpy_matrix(1.0 * (A != 0)), 5)]
+    'walktrap': lambda A, K, name: walktrap(A, K),
+}
 
 # In[14]:
 
@@ -172,23 +176,23 @@ from collections import OrderedDict
 from sklearn.metrics.cluster import normalized_mutual_info_score as mi
 
 qual_fun = OrderedDict([
-            ('1-MeanConductance', lambda F, A: 1-MeanConductance(GetComms(F, A), A) if not isinstance(F, list) else 1-MeanConductance(F, A)),
-            ('1-MaxConductance', lambda F, A: 1-MaxConductance(GetComms(F, A), A) if not isinstance(F, list) else 1-MaxConductance(F, A)),
+            #('1-MeanConductance', lambda F, A: 1-MeanConductance(GetComms(F, A), A) if not isinstance(F, list) else 1-MeanConductance(F, A)),
+            #('1-MaxConductance', lambda F, A: 1-MaxConductance(GetComms(F, A), A) if not isinstance(F, list) else 1-MaxConductance(F, A)),
             ('NMI', lambda F,A, true_comm: NMI(GetComms(F, A), A, true_comm) if not isinstance(F, list) else NMI(F, A, true_comm)),
             #('NMI_new', lambda F,A, true_comm: NMI3(GetComms(F, A), A, true_comm) if not isinstance(F, list) else NMI(F, A, true_comm)),
-            ('MixedModularity', MixedModularity),
+            #('MixedModularity', MixedModularity),
             #('NMI_skl', lambda F,A, true_comm: normalized_mutual_info_score(GetComms(F, A)))
     ])
 
 def calc_res(data_params, save_path='../data/dumps/models_res_full-dump'):
-    iter_count = 10
+    iter_count = 5
     if save_all:
         enshure_dir("../data/dumps/all_exp")
     mixing_range = np.linspace(0, 0.5, 6)
     #mixing_range = np.linspace(0, 0.5, 3)
     models_res = []
     for i_mix, mix in enumerate(mixing_range):
-        print '{} mix: {}'.format(time(), mix)
+        print '\n{} mix: {}'.format(time(), mix)
         with file(r'..\external\Lancichinetti benchmark\time_seed.dat', 'w') as f:
             f.write(str(seed))
         data_params['on'] = np.floor(data_params['N'] * mix)
@@ -216,8 +220,8 @@ if __name__ == '__main__':
     data_params = {
         'N': None,
         'mut': None,
-        'maxk': 50,
-        'k': 30,
+        'maxk': 150,
+        'k': 75,
         'om': 2,
         'muw': None,
         'beta': 2,
@@ -230,20 +234,23 @@ if __name__ == '__main__':
     data_params['mut'] = 0.1
     data_params['muw'] = 0.1
     print '~~~~~~~~~~~~~~ {} {} {} ~~~~~~~~~~~~~~'.format(data_params['N'], data_params['mut'], data_params['muw'])
-    calc_res(data_params, '../data/dumps/new-dump-{}-{}'.format(data_params['N'], data_params['mut']))
+    calc_res(data_params, '../data/dumps/NewGetCommsRule3-dump-{}-{}'.format(data_params['N'], data_params['mut']))
 
     data_params['mut'] = 0.3
     data_params['muw'] = 0.3
     print '~~~~~~~~~~~~~~ {} {} {} ~~~~~~~~~~~~~~'.format(data_params['N'], data_params['mut'], data_params['muw'])
-    calc_res(data_params, '../data/dumps/new-dump-{}-{}'.format(data_params['N'], data_params['mut']))
+    calc_res(data_params, '../data/dumps/NewGetCommsRule3-dump-{}-{}'.format(data_params['N'], data_params['mut']))
 
-    data_params['N'] = 5000
-    data_params['mut'] = 0.1
-    data_params['muw'] = 0.1
-    print '~~~~~~~~~~~~~~ {} {} {} ~~~~~~~~~~~~~~'.format(data_params['N'], data_params['mut'], data_params['muw'])
-    calc_res(data_params, '../data/dumps/new-dump-{}-{}'.format(data_params['N'], data_params['mut']))
-
-    data_params['mut'] = 0.3
-    data_params['muw'] = 0.3
-    print '~~~~~~~~~~~~~~ {} {} {} ~~~~~~~~~~~~~~'.format(data_params['N'], data_params['mut'], data_params['muw'])
-    calc_res(data_params, '../data/dumps/new-dump-{}-{}'.format(data_params['N'], data_params['mut']))
+    # data_params['N'] = 2000
+    # data_params['k'] = 100
+    # data_params['maxk'] = 300
+    #
+    # data_params['mut'] = 0.1
+    # data_params['muw'] = 0.1
+    # print '~~~~~~~~~~~~~~ {} {} {} ~~~~~~~~~~~~~~'.format(data_params['N'], data_params['mut'], data_params['muw'])
+    # calc_res(data_params, '../data/dumps/NewGetCommsRule2-dump-{}-{}'.format(data_params['N'], data_params['mut']))
+    #
+    # data_params['mut'] = 0.3
+    # data_params['muw'] = 0.3
+    # print '~~~~~~~~~~~~~~ {} {} {} ~~~~~~~~~~~~~~'.format(data_params['N'], data_params['mut'], data_params['muw'])
+    # calc_res(data_params, '../data/dumps/NewGetCommsRule2-dump-{}-{}'.format(data_params['N'], data_params['mut']))

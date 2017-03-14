@@ -404,8 +404,14 @@ def MixedModularity(F, A):
         res += np.sum(M)
     return res / m2
 
-def GetComms(F, A):
+def GetCommsPrev(F, A):
     C = F > (np.sum(A) / (np.mean(A[A != 0]) * A.shape[0] * (A.shape[0] - 1)))
+    return [np.nonzero(S)[0]+1 for S in C.T if len(np.nonzero(S)[0]) not in {0, C.shape[1]}]
+
+def GetComms(F, A):
+    eps = (np.sum(A) / (np.mean(A[A != 0]) * A.shape[0] * (A.shape[0] - 1)))
+    delta = np.sqrt(-np.log(1-eps))
+    C = F > delta
     return [np.nonzero(S)[0]+1 for S in C.T if len(np.nonzero(S)[0]) not in {0, C.shape[1]}]
 
 def Conductance(comms, A):
@@ -451,11 +457,16 @@ def NMI(comms, A, Comm_True):
         for indx, comm in enumerate(comms):
             for c in sorted_t(comm):
                 f.write("1 {} {}\n".format(c, indx))
-
-    with file('../external/Lancichinetti benchmark/clu2', 'w') as f:
-        for key in Comm_True:
-            for c in sorted_t(Comm_True[key]):
-                f.write("1 {} {}\n".format(c, key))
+    try:
+        with file('../external/Lancichinetti benchmark/clu2', 'w') as f:
+            for key in Comm_True:
+                for c in sorted_t(Comm_True[key]):
+                    f.write("1 {} {}\n".format(c, key))
+    except:
+        with file('../external/Lancichinetti benchmark/clu2', 'w') as f:
+            for indx, comm in enumerate(Comm_True):
+                for c in sorted_t(comm):
+                    f.write("1 {} {}\n".format(c, indx))
     cwd = os.getcwd()
     os.chdir('../external/Lancichinetti benchmark/')
     with open('outputlog-nmi', 'wb') as outputlog:
